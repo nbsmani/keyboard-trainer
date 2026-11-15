@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Keyboard Sight-Reading Trainer</title>
+<script>
+(function(){
+  function bar(msg){
+    var b=document.getElementById("diag");
+    if(!b){ b=document.createElement("div"); b.id="diag";
+      b.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:99;background:#c0392b;color:#fff;font:12px/1.4 monospace;padding:8px 10px;max-height:40vh;overflow:auto";
+      (document.body||document.documentElement).appendChild(b); }
+    b.textContent += (b.textContent ? "\n" : "") + "⚠ " + msg;
+    b.style.whiteSpace="pre-wrap";
+  }
+  window.__diag = bar;
+  window.addEventListener("error", function(e){ bar((e.message||"error") + (e.filename ? " @" + e.filename.split("/").pop() + ":" + e.lineno : "")); });
+  window.addEventListener("unhandledrejection", function(e){ bar("promise: " + (e.reason && e.reason.message || e.reason)); });
+  window.addEventListener("load", function(){
+    var miss=[];
+    if(typeof ABCJS==="undefined") miss.push("notation library (abcjs) did not load");
+    if(!(window.AudioContext||window.webkitAudioContext)) miss.push("no Web Audio");
+    try{ localStorage.setItem("kbt_probe","1"); }catch(e){ miss.push("storage blocked (progress won't save)"); }
+    if(miss.length) bar(miss.join(" · "));
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.7.2/dist/abcjs-basic-min.js"></script>
+<style>
+:root{
+  --bg:#f6f4ef; --card:#ffffff; --ink:#1d1d1f; --muted:#6b6b70; --line:#e3dfd6;
+  --accent:#b4441f; --accent-soft:#f5e4dc; --good:#2f7d4f; --ok:#c28a12; --bad:#c0392b;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#161616; --card:#222; --ink:#eee; --muted:#a3a3a8; --line:#353535;
+         --accent:#e07a50; --accent-soft:#3a2a22; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:14px 14px 40px}
+h1{font-size:19px;margin:4px 0 2px}
+.sub{color:var(--muted);font-size:13px;margin:0 0 12px}
+.tabs{display:flex;gap:6px;margin-bottom:12px;position:sticky;top:0;background:var(--bg);padding:6px 0;z-index:5}
+.tabs button{flex:1;padding:9px 4px;border:1px solid var(--line);background:var(--card);color:var(--ink);
+  border-radius:10px;font-weight:600;font-size:14px}
+.tabs button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:6px 0}
+label{font-size:13px;color:var(--muted)}
+select,input[type=range]{font-size:14px}
+select{padding:6px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.chk{display:flex;align-items:center;gap:4px;font-size:13px;color:var(--ink)}
+.btn{padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);
+  font-weight:600;font-size:14px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn:disabled{opacity:.45}
+.paper{background:#fff;color:#111;border-radius:10px;padding:4px 2px;border:1px solid #ddd}
+.paper svg{display:block}
+.hl{color:#d9480f !important;fill:#d9480f !important}
+.c-good{color:var(--good)!important;fill:#2f7d4f!important}
+.c-ok{color:#c28a12!important;fill:#c28a12!important}
+.c-bad{color:#c0392b!important;fill:#c0392b!important}
+.hidden{display:none!important}
+.big{font-size:22px;font-weight:700}
+.muted{color:var(--muted);font-size:13px}
+.stat{display:flex;gap:16px;flex-wrap:wrap;font-size:14px}
+.stat b{font-size:18px}
+/* note trainer */
+#noteStaff{max-width:240px;margin:0 auto}
+.letters{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px}
+.letters button{padding:14px 0;font-size:18px;font-weight:700;border-radius:10px;border:1px solid var(--line);
+  background:var(--card);color:var(--ink)}
+.letters button.right,.kb .w.right,.kb .b.right{background:var(--good)!important;color:#fff;border-color:var(--good)}
+.letters button.wrong,.kb .w.wrong{background:var(--bad)!important;color:#fff;border-color:var(--bad)}
+.kb{position:relative;height:130px;margin-top:10px;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+.kb .w{position:absolute;top:0;height:100%;border:1px solid #888;background:#fff;border-radius:0 0 6px 6px;
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;font-size:12px;color:#555;font-weight:600}
+.kb .b{position:absolute;top:0;height:60%;background:#222;border-radius:0 0 4px 4px;z-index:2;pointer-events:none}
+.kb .mc{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{padding:3px 8px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid var(--line)}
+.flash{min-height:22px;text-align:center;font-weight:700;margin-top:6px}
+/* tap pad */
+#tapPad{width:100%;height:120px;border-radius:14px;border:2px dashed var(--accent);background:var(--accent-soft);
+  color:var(--ink);font-size:20px;font-weight:700;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#tapPad.pulse{background:var(--accent);color:#fff}
+details summary{cursor:pointer;font-weight:600}
+ol,ul{padding-left:20px;margin:6px 0}
+.beat{display:inline-block;width:14px;height:14px;border-radius:50%;background:var(--line);margin:0 3px}
+.beat.on{background:var(--accent)}
+.midibar{display:flex;align-items:center;gap:8px;font-size:13px;margin:2px 0 8px;flex-wrap:wrap}
+.midibar .dot{width:10px;height:10px;border-radius:50%;background:#999;display:inline-block}
+.midibar .dot.on{background:#2f7d4f}
+.midibar .dot.hit{background:#e8590c}
+.kb .w.midi{background:#ffd8c2!important}
+/* flashcards */
+.flip{perspective:1200px;margin:8px 0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.flip .inner{position:relative;min-height:250px;transition:transform .45s;transform-style:preserve-3d}
+.flip.flipped .inner{transform:rotateY(180deg)}
+.face{position:absolute;top:0;right:0;bottom:0;left:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:14px;
+  border:1px solid var(--line);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px;
+  box-shadow:0 2px 10px rgba(0,0,0,.06)}
+.face.back{transform:rotateY(180deg);background:var(--accent-soft)}
+.fc{width:100%;max-width:260px}
+.fc:empty{display:none}
+.fq{font-size:30px;font-weight:700;text-align:center;margin-top:6px}
+.fq:empty{display:none}
+.hint{position:absolute;bottom:8px;font-size:12px;color:var(--muted)}
+.ans{text-align:center}
+.ans .a1{font-size:28px;font-weight:800}
+.ans .a2{font-size:16px;margin-top:6px}
+.ans .a3{font-size:13px;color:var(--muted);margin-top:8px}
+.grade{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;visibility:hidden}
+.grade.show{visibility:visible}
+.grade .btn{padding:13px 0;font-size:15px}
+.g-again{border-color:var(--bad)!important;color:var(--bad)!important}
+.g-hard{border-color:var(--ok)!important;color:var(--ok)!important}
+.g-good{background:var(--good)!important;border-color:var(--good)!important;color:#fff!important}
+.boxes{display:flex;gap:6px;margin-top:10px}
+.boxes div{flex:1;text-align:center;font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:4px 0}
+.boxes b{display:block;font-size:16px;color:var(--ink)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Keyboard Sight-Reading Trainer</h1>
+  <div class="midibar" id="midiBar"><span id="midiDot" class="dot"></span><span id="midiText">MIDI: checking…</span>
+    <button class="btn" id="midiBtn" style="padding:4px 10px;font-size:12px">Connect keyboard</button></div>
+  <p class="sub">Matched to <i>Pappa's Easy Way Electronic Keyboard Method, Book 1</i>: treble clef, Ta / ti counting, single-finger chords.</p>
+
+  <details class="card" id="planBox">
+    <summary>Daily 12-minute routine</summary>
+    <ol>
+      <li><b>Notes (3 min):</b> one 20-note round on <i>Keys</i>. Aim for &gt;90% accuracy, then work on speed.</li>
+      <li><b>Rhythm (3 min):</b> say the counts aloud (Ta, Ta-2, ti-ti, Ra) while tapping. Move on when you score above 85% twice in a row.</li>
+      <li><b>Sight-read (5 min):</b> 3–4 new melodies. Before playing, check the time signature, the rhythms and the highest and lowest notes. Then <i>Count me in</i> and <b>don't stop</b> for mistakes. Use <i>Hear it</i> afterwards to check.</li>
+      <li><b>Book (1 min):</b> read the counts of the next song in the book before you play it.</li>
+    </ol>
+    <p class="muted">Level guide: Level 1 = pp. 13–25 (C to G, five-finger C position) · Level 2 = pp. 26–27 (up to high C) · Level 3 = pp. 28–31 (down to F below middle C).</p>
+  </details>
+
+  <div class="card">
+    <div class="row">
+      <label>Book level</label>
+      <select id="level">
+        <option value="1">Level 1 · C–G (pp. 13–25)</option>
+        <option value="2">Level 2 · middle C–high C (pp. 26–27)</option>
+        <option value="3">Level 3 · F below–high C (pp. 28–31)</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Voice</label>
+      <select id="voice">
+        <option value="piano">Piano</option>
+        <option value="flute">Flute</option>
+        <option value="violin">Violin</option>
+        <option value="clarinet">Clarinet</option>
+        <option value="organ">Organ</option>
+        <option value="guitar-acoustic">Acoustic guitar</option>
+        <option value="synth">Simple synth</option>
+      </select>
+      <button class="btn" id="voiceTry" style="padding:6px 12px">▶ Try</button>
+      <span class="muted" id="voiceStatus"></span>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button data-tab="cards" class="on">Cards</button>
+    <button data-tab="notes">Notes</button>
+    <button data-tab="rhythm">Rhythm</button>
+    <button data-tab="sight">Sight-read</button>
+  </div>
+
+  <!-- CARDS -->
+  <section id="tab-cards">
+    <div class="card">
+      <div class="row">
+        <label>Deck</label>
+        <select id="deck">
+          <option value="notes">Notes on the staff</option>
+          <option value="values">Note values &amp; rests</option>
+          <option value="signs">Signs &amp; terms</option>
+          <option value="mixed">Mixed</option>
+        </select>
+        <label class="chk"><input type="checkbox" id="cardSound" checked> play note on flip</label>
+      </div>
+      <div class="row" style="justify-content:space-between">
+        <span class="muted" id="cardProg"></span>
+        <button class="btn" id="cardReset" style="padding:4px 10px;font-size:12px">Reset deck</button>
+      </div>
+      <div class="flip" id="flip">
+        <div class="inner">
+          <div class="face front"><div class="paper fc" id="cardFront"></div><div class="fq" id="cardFrontQ"></div><div class="hint">Tap to flip</div></div>
+          <div class="face back"><div class="ans" id="cardBack"></div></div>
+        </div>
+      </div>
+      <div class="grade" id="grade">
+        <button class="btn g-again" data-g="0">Again</button>
+        <button class="btn g-hard" data-g="1">Hard</button>
+        <button class="btn g-good" data-g="2">Got it</button>
+      </div>
+      <div class="boxes" id="boxes"></div>
+      <p class="muted">Say the answer out loud before you flip. <b>Again</b> brings the card back within a few cards. <b>Got it</b> moves it up a box, and higher boxes come round less often. Notes on the staff follow your book level.</p>
+    </div>
+  </section>
+
+  <!-- NOTES -->
+  <section id="tab-notes" class="hidden">
+    <div class="card">
+      <div class="row">
+        <label>Answer with</label>
+        <select id="ansMode"><option value="keys">Keys (exact octave)</option><option value="letters">Letter names</option></select>
+        <label class="chk"><input type="checkbox" id="keyLabels"> key labels</label>
+        <label class="chk"><input type="checkbox" id="noteSound" checked> sound</label>
+      </div>
+      <div class="row" style="justify-content:space-between">
+        <span class="muted" id="noteProg">Press Start for a 20-note round</span>
+        <button class="btn primary" id="noteStart">Start</button>
+      </div>
+      <div class="paper" id="noteStaff"></div>
+      <div class="flash" id="noteFlash"></div>
+      <div class="letters hidden" id="letterPad"></div>
+      <div class="kb" id="kb"></div>
+    </div>
+    <div class="card hidden" id="noteResult"></div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <b>Your note accuracy (all rounds)</b>
+        <button class="btn" id="noteReset" style="padding:4px 10px;font-size:12px">Reset</button>
+      </div>
+      <div class="chips" id="noteChips"></div>
+      <p class="muted">Notes you miss or answer slowly come up more often.</p>
+    </div>
+  </section>
+
+  <!-- RHYTHM -->
+  <section id="tab-rhythm" class="hidden">
+    <div class="card">
+      <div class="row">
+        <label>Time</label>
+        <select id="rTime"><option>4/4</option><option>3/4</option><option>2/4</option></select>
+        <label>Values</label>
+        <select id="rVals"><option value="1">Semibreve–crotchet + rests</option><option value="2">+ quavers (p. 30)</option></select>
+        <label>Bars</label>
+        <select id="rBars"><option>2</option><option selected>4</option></select>
+      </div>
+      <div class="row">
+        <label>Counts</label>
+        <select id="rStyle"><option value="ta">Ta / ti / Ra (book)</option><option value="num">1 &amp; 2 &amp;</option></select>
+        <label class="chk"><input type="checkbox" id="rShow" checked> show counts</label>
+        <label class="chk"><input type="checkbox" id="rClick" checked> metronome while tapping</label>
+      </div>
+      <div class="row">
+        <label>Tempo <b id="rTempoV">70</b></label>
+        <input type="range" id="rTempo" min="40" max="120" value="70" style="flex:1">
+      </div>
+      <div class="paper" id="rStaff"></div>
+      <div class="row" style="justify-content:center;margin-top:8px">
+        <span id="rBeats"></span>
+      </div>
+      <div class="row">
+        <button class="btn" id="rNew">New</button>
+        <button class="btn" id="rListen">Listen</button>
+        <button class="btn primary" id="rTap">Tap it</button>
+        <button class="btn" id="rStop">Stop</button>
+      </div>
+      <button id="tapPad">TAP (or spacebar)</button>
+      <div id="rResult" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- SIGHT -->
+  <section id="tab-sight" class="hidden">
+    <div class="card">
+      <div class="row">
+        <label>Time</label>
+        <select id="sTime"><option>4/4</option><option>3/4</option><option>2/4</option></select>
+        <label class="chk"><input type="checkbox" id="sQuav"> quavers</label>
+        <label class="chk"><input type="checkbox" id="sRests" checked> rests</label>
+      </div>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="sLetters"> letter names</label>
+        <label class="chk"><input type="checkbox" id="sCounts"> counts</label>
+        <label class="chk"><input type="checkbox" id="sChords" checked> chord signs</label>
+        <label class="chk"><input type="checkbox" id="sPlayChords"> play chords</label>
+      </div>
+      <div class="row">
+        <label>Tempo <b id="sTempoV">72</b></label>
+        <input type="range" id="sTempo" min="40" max="120" value="72" style="flex:1">
+      </div>
+      <div class="paper" id="sStaff"></div>
+      <div class="row" style="justify-content:center;margin-top:8px"><span id="sBeats"></span></div>
+      <div class="row">
+        <button class="btn" id="sNew">New melody</button>
+        <button class="btn primary" id="sGo">Count me in</button>
+        <button class="btn" id="sHear">Hear it</button>
+        <button class="btn" id="sStop">Stop</button>
+      </div>
+      <div id="sResult"></div>
+      <p class="muted"><b>Count me in</b> gives one bar of clicks, then the metronome keeps going and the cursor moves with the beat. Play along on your keyboard and don't stop. <b>Hear it</b> plays the correct version for checking.</p>
+    </div>
+  </section>
+
+  <details class="card">
+    <summary>Audio settings</summary>
+    <div class="row">
+      <label>Latency compensation <b id="latV">0</b> ms</label>
+      <input type="range" id="lat" min="0" max="300" step="5" value="0" style="flex:1">
+    </div>
+    <p class="muted">Instrument samples from tonejs-instruments (MIT licence). They load the first time you choose a voice.</p>
+    <p class="muted">With Bluetooth headphones, if Rhythm always says you're late by about the same amount, set this to that number.</p>
+  </details>
+</main>
+
+<script>
+(function(){
+"use strict";
+// ---------- storage ----------
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem("kbt_"+k); return v==null? d : JSON.parse(v);}catch(e){return d;} },
+  set(k, v){ try{ localStorage.setItem("kbt_"+k, JSON.stringify(v)); }catch(e){} }
+};
+const $ = id => document.getElementById(id);
+
+// ---------- audio ----------
+let ctx = null, live = [], timers = [];
+function ac(){
+  if(!ctx){ const C = window.AudioContext || window.webkitAudioContext; ctx = new C(); }
+  if(ctx.state === "suspended") ctx.resume();
+  return ctx;
+}
+const mtof = m => 440*Math.pow(2,(m-69)/12);
+// ---------- sampled voices ----------
+const voices = {}; // name -> {buffers:{midi:AudioBuffer}, keys:[...]}
+let voiceName = "piano";
+function b64buf(b64){ const bin = atob(b64), u = new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u[i] = bin.charCodeAt(i); return u.buffer; }
+function loadVoice(name){
+  voiceName = name;
+  if(name === "synth"){ $("voiceStatus").textContent = ""; return Promise.resolve(); }
+  if(voices[name] && voices[name].ready) { $("voiceStatus").textContent = ""; return Promise.resolve(); }
+  if(voices[name] && voices[name].p) return voices[name].p;
+  $("voiceStatus").textContent = "Loading…";
+  const v = voices[name] = {buffers:{}, keys:[], ready:false};
+  v.p = new Promise((res, rej) => {
+    const go = () => {
+      const data = (window.KBT_SAMPLES||{})[name]; if(!data){ rej(new Error("no data")); return; }
+      const c = ac();
+      Promise.all(Object.keys(data).map(k => new Promise((ok, bad) =>
+        c.decodeAudioData(b64buf(data[k]), b => { v.buffers[k] = b; ok(); }, bad))))
+      .then(() => { v.keys = Object.keys(v.buffers).map(Number).sort((a,b)=>a-b); v.ready = true;
+        if(voiceName === name) $("voiceStatus").textContent = ""; res(); })
+      .catch(rej);
+    };
+    if((window.KBT_SAMPLES||{})[name]) return go();
+    const sc = document.createElement("script"); sc.src = "sounds/" + name + ".js";
+    sc.onload = go; sc.onerror = () => rej(new Error("load failed"));
+    document.head.appendChild(sc);
+  }).catch(() => { $("voiceStatus").textContent = "Couldn't load. Using simple synth."; delete voices[name]; });
+  return v.p;
+}
+function sampled(midi, t, dur, vol){
+  const v = voices[voiceName]; if(!v || !v.ready) return false;
+  const c = ac(), lo = v.keys[0];
+  while(midi < lo - 5) midi += 12;               // keep low chord notes in the instrument's range
+  let k = v.keys[0]; v.keys.forEach(x => { if(Math.abs(x - midi) < Math.abs(k - midi)) k = x; });
+  const src = c.createBufferSource(), g = c.createGain();
+  src.buffer = v.buffers[k]; src.playbackRate.value = Math.pow(2, (midi - k)/12);
+  const sustain = voiceName !== "piano" && voiceName !== "guitar-acoustic";
+  const rel = sustain ? .12 : .35, end = t + Math.max(.15, dur);
+  const gv = vol * 2.4;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gv, t + (sustain ? .03 : .005));
+  g.gain.setValueAtTime(gv, end); g.gain.exponentialRampToValueAtTime(0.0001, end + rel);
+  src.connect(g); g.connect(c.destination); src.start(t); src.stop(end + rel + .02); live.push(src);
+  return true;
+}
+function tone(midi, t, dur, vol){
+  const c = ac(); vol = vol==null? .28 : vol;
+  if(sampled(midi, t, dur, vol)) return;
+  const g = c.createGain(); g.connect(c.destination);
+  const o1 = c.createOscillator(), o2 = c.createOscillator(), g2 = c.createGain();
+  o1.type = "triangle"; o1.frequency.value = mtof(midi);
+  o2.type = "sine"; o2.frequency.value = mtof(midi)*2; g2.gain.value = .25;
+  o1.connect(g); o2.connect(g2); g2.connect(g);
+  const end = t + Math.max(.18, dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t+.008);
+  g.gain.exponentialRampToValueAtTime(vol*.45, t+Math.min(.25, dur*.5));
+  g.gain.exponentialRampToValueAtTime(0.0001, end);
+  o1.start(t); o2.start(t); o1.stop(end+.02); o2.stop(end+.02);
+  live.push(o1, o2);
+}
+function click(t, accent){
+  const c = ac(); const o = c.createOscillator(), g = c.createGain();
+  o.type = "square"; o.frequency.value = accent? 1760 : 1180;
+  g.gain.setValueAtTime(accent? .22 : .13, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+.035);
+  o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+.05); live.push(o);
+}
+function at(t, fn){ const ms = (t - ac().currentTime)*1000; timers.push(setTimeout(fn, Math.max(0, ms))); }
+function stopAll(){
+  timers.forEach(clearTimeout); timers = [];
+  live.forEach(o => { try{o.stop();}catch(e){} }); live = [];
+  document.querySelectorAll(".hl").forEach(e => e.classList.remove("hl"));
+  setBeat("rBeats", -1, 0); setBeat("sBeats", -1, 0);
+  playing = null;
+}
+let playing = null;
+function latency(){ return (+$("lat").value)/1000; }
+
+// ---------- music data ----------
+// diatonic white keys F3..C5
+const KEYS = [
+  {abc:"F,", L:"F", m:53},{abc:"G,", L:"G", m:55},{abc:"A,", L:"A", m:57},{abc:"B,", L:"B", m:59},
+  {abc:"C", L:"C", m:60},{abc:"D", L:"D", m:62},{abc:"E", L:"E", m:64},{abc:"F", L:"F", m:65},
+  {abc:"G", L:"G", m:67},{abc:"A", L:"A", m:69},{abc:"B", L:"B", m:71},{abc:"c", L:"C", m:72}
+];
+const RANGE = {1:[4,8], 2:[4,11], 3:[0,11]};
+const TIME = {"4/4":8, "3/4":6, "2/4":4}; // in quavers
+const rand = a => a[Math.floor(Math.random()*a.length)];
+function wpick(items){ // [ [item, weight], ... ]
+  const tot = items.reduce((s,x)=>s+x[1],0); let r = Math.random()*tot;
+  for(const x of items){ if((r -= x[1]) <= 0) return x[0]; } return items[items.length-1][0];
+}
+
+// ---------- rhythm generator ----------
+// piece: {notes:[durations], rest:bool}
+function genBar(len, vals, allowRests){
+  for(let tries=0; tries<50; tries++){
+    const out = []; let pos = 0;
+    while(pos < len){
+      const rem = len - pos, c = [];
+      const add = (p, w) => { const d = p.notes.reduce((a,b)=>a+b,0); if(d <= rem) c.push([p, w]); };
+      add({notes:[2]}, 5);
+      if(len===8 ? (pos===0||pos===4) : true) add({notes:[4]}, 3);
+      if(pos===0 || (len===8 && pos===2)) add({notes:[6]}, 1.1);
+      if(len===8 && pos===0) add({notes:[8]}, .8);
+      if(allowRests){
+        add({notes:[2], rest:true}, 1.1);
+        if(len===8 && (pos===0||pos===4)) add({notes:[4], rest:true}, .35);
+      }
+      if(vals >= 2){ add({notes:[1,1]}, 3); if(len===8 ? (pos===0||pos===4) : pos===0) add({notes:[1,1,1,1]}, 1.4); }
+      const p = wpick(c);
+      p.notes.forEach(d => out.push({dur:d, rest:!!p.rest}));
+      pos += p.notes.reduce((a,b)=>a+b,0);
+    }
+    if(out.some(e=>!e.rest)) return out;
+  }
+  return [{dur:len, rest:false}];
+}
+function finalBar(len){
+  const opts = {8:[[8],[4,4],[2,2,4]], 6:[[6],[2,4]], 4:[[4],[2,2]]}[len];
+  return rand(opts).map(d=>({dur:d, rest:false}));
+}
+// counts text
+function syllable(e, pos, len, style){
+  const beat = Math.floor(pos/2)+1;
+  if(style === "ta"){
+    if(e.dur === 1) return "ti";
+    const base = e.rest? "Ra" : "Ta", n = e.dur/2;
+    return n===1? base : base + "-" + Array.from({length:n-1},(_,i)=>i+2).join("-");
+  }
+  if(e.dur === 1) return pos%2 ? "&" : String(beat);
+  const n = e.dur/2, s = Array.from({length:n},(_,i)=>beat+i).join("-");
+  return e.rest? "("+s+")" : s;
+}
+// build ABC from bars of events (each event: dur, rest, key idx, chord?)
+function buildAbc(bars, opts){
+  const len = TIME[opts.time];
+  let body = "";
+  bars.forEach((bar, bi) => {
+    let pos = 0, s = "";
+    if(opts.chords && bar.chord) s += '"' + bar.chord + '"';
+    bar.events.forEach((e, ei) => {
+      // beam quavers within a beat: no space before an off-beat quaver
+      const joinPrev = e.dur===1 && pos%2===1 && ei>0 && bar.events[ei-1].dur===1;
+      const joinPrev4 = e.dur===1 && ei>0 && bar.events[ei-1].dur===1 && e.group && e.group===bar.events[ei-1].group;
+      if(!(joinPrev || joinPrev4) && ei>0) s += " ";
+      if(opts.letters) s += '"_' + (e.rest ? " " : KEYS[e.k].L) + '"';
+      if(opts.counts) s += '"_' + syllable(e, pos, len, opts.style) + '"';
+      s += (e.rest? "z" : KEYS[e.k].abc) + (e.dur===1 ? "" : e.dur);
+      pos += e.dur;
+    });
+    body += s + (bi === bars.length-1 ? " |]" : " |");
+    if(bars.length === 4 && bi === 1) body += "\n";
+  });
+  return "X:1\nM:" + opts.time + "\nL:1/8\nK:C\n" + body + "\n";
+}
+function render(el, abc, w){
+  const r = ABCJS.renderAbc(el, abc, {add_classes:true, responsive:"resize", staffwidth:w||560,
+    paddingtop:6, paddingbottom:6, paddingleft:4, paddingright:4});
+  return Array.from(el.querySelectorAll(".abcjs-note, .abcjs-rest"));
+}
+function setBeat(id, idx, n){
+  const el = $(id); if(!el) return;
+  if(n){ el.innerHTML = Array.from({length:n},()=>'<span class="beat"></span>').join(""); }
+  Array.from(el.children).forEach((b,i)=>b.classList.toggle("on", i===idx));
+}
+// schedule a performance: events flattened with times. returns {t0, items:[{t,dur,ev,el}]}
+function schedule(bars, els, time, tempo, o){
+  const c = ac(); stopAll();
+  const len = TIME[time], beats = len/2, q = 60/tempo/2;
+  const t0 = c.currentTime + .25, start = t0 + beats*2*q; // one bar count-in
+  // count-in clicks
+  for(let b=0; b<beats; b++){ const t = t0 + b*2*q; click(t, b===0); at(t, ()=>setBeat(o.beatId, b, 0)); }
+  const totalBeats = bars.length * beats;
+  if(o.metro){
+    for(let b=0; b<totalBeats; b++){ const t = start + b*2*q; click(t, b%beats===0); }
+  }
+  for(let b=0; b<totalBeats; b++){ const t = start + b*2*q; at(t, ()=>setBeat(o.beatId, b%beats, 0)); }
+  const items = []; let pos = 0, i = 0;
+  bars.forEach((bar, bi) => {
+    if(o.playChords && bar.chord){
+      const ch = CHORDS[bar.chord];
+      ch.play.forEach(m => tone(m, start + pos*q, len*q*.95, .09));
+    }
+    bar.events.forEach(e => {
+      const t = start + pos*q, el = els[i];
+      items.push({t, dur:e.dur*q, ev:e, el});
+      if(o.play && !e.rest) tone(o.rhythmPitch || KEYS[e.k].m, t, e.dur*q*.92, o.rhythmPitch? .22 : .28);
+      if(el){ at(t, ()=>{ document.querySelectorAll(".hl").forEach(x=>x.classList.remove("hl")); el.classList.add("hl"); }); }
+      pos += e.dur; i++;
+    });
+  });
+  const end = start + pos*q;
+  at(end + q, ()=>{ document.querySelectorAll(".hl").forEach(x=>x.classList.remove("hl")); setBeat(o.beatId, -1, 0); if(o.done) o.done(); playing = null; });
+  playing = o.kind;
+  return {t0, start, end, q, items};
+}
+
+// ---------- chords ----------
+const CHORDS = {
+  "C":  {tones:["C","E","G"],      play:[48,52,55]},
+  "F":  {tones:["F","A","C"],      play:[53,57,60]},
+  "G7": {tones:["G","B","D","F"],  play:[43,47,50,53]},
+  "Dm": {tones:["D","F","A"],      play:[50,53,57]},
+  "Am": {tones:["A","C","E"],      play:[45,48,52]}
+};
+function pickChord(bar, level, isLast, isFirst){
+  if(isLast) return "C";
+  const set = level >= 3 ? ["C","F","G7","Dm","Am"] : ["C","F","G7"];
+  let best = "C", bs = -1;
+  set.forEach(ch => {
+    let s = 0, pos = 0;
+    bar.events.forEach(e => {
+      if(!e.rest && CHORDS[ch].tones.includes(KEYS[e.k].L)) s += e.dur + (pos===0 ? 3 : 0) + (pos%4===0 ? 1 : 0);
+      pos += e.dur;
+    });
+    if(ch === "C") s += isFirst ? 2 : .5;
+    if(s > bs){ bs = s; best = ch; }
+  });
+  return best;
+}
+
+// ---------- tabs ----------
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+  stopAll();
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x===b));
+  ["cards","notes","rhythm","sight"].forEach(t => $("tab-"+t).classList.toggle("hidden", t!==b.dataset.tab));
+  if(b.dataset.tab === "rhythm" && !rState) newRhythm();
+  if(b.dataset.tab === "sight" && !sState) newSight();
+  store.set("tab", b.dataset.tab);
+}));
+
+// ---------- settings persistence ----------
+const persist = ["level","voice","deck","cardSound","ansMode","keyLabels","noteSound","rTime","rVals","rBars","rStyle","rShow","rClick","rTempo",
+  "sTime","sQuav","sRests","sLetters","sCounts","sChords","sPlayChords","sTempo","lat"];
+const saved = store.get("settings", {});
+persist.forEach(id => {
+  const el = $(id);
+  if(saved[id] != null){ if(el.type === "checkbox") el.checked = saved[id]; else el.value = saved[id]; }
+  el.addEventListener("change", () => {
+    const s = store.get("settings", {}); s[id] = el.type==="checkbox" ? el.checked : el.value; store.set("settings", s);
+  });
+});
+$("rTempoV").textContent = $("rTempo").value; $("sTempoV").textContent = $("sTempo").value; $("latV").textContent = $("lat").value;
+$("rTempo").addEventListener("input", () => $("rTempoV").textContent = $("rTempo").value);
+$("sTempo").addEventListener("input", () => $("sTempoV").textContent = $("sTempo").value);
+$("lat").addEventListener("input", () => $("latV").textContent = $("lat").value);
+
+// ================= NOTES =================
+let nStats = store.get("noteStats", {}); // key midi -> {n,c,t}
+let round = null, cur = null, lock = false;
+function rangeIdx(){ const [a,b] = RANGE[$("level").value]; const r=[]; for(let i=a;i<=b;i++) r.push(i); return r; }
+function buildKeyboard(){
+  const kb = $("kb"); kb.innerHTML = "";
+  const n = KEYS.length, w = 100/n;
+  const allowed = new Set(rangeIdx());
+  KEYS.forEach((k, i) => {
+    const d = document.createElement("div");
+    d.className = "w"; d.style.left = (i*w)+"%"; d.style.width = w+"%";
+    d.dataset.i = i;
+    if(!allowed.has(i)) d.style.background = "#e9e6df";
+    d.innerHTML = ($("keyLabels").checked ? k.L : "") + (k.m===60 ? '<span class="mc"></span>' : "");
+    d.addEventListener("pointerdown", ev => { ev.preventDefault(); answer(i, d); });
+    kb.appendChild(d);
+  });
+  // black keys after F G A, C D, F G A (indices 0,1,2,4,5,7,8,9)
+  [0,1,2,4,5,7,8,9].forEach(i => {
+    const b = document.createElement("div"); b.className = "b";
+    b.style.left = ((i+1)*w - w*.3) + "%"; b.style.width = (w*.6)+"%"; kb.appendChild(b);
+  });
+  const lp = $("letterPad"); lp.innerHTML = "";
+  ["C","D","E","F","G","A","B"].forEach(L => {
+    const b = document.createElement("button"); b.textContent = L;
+    b.addEventListener("pointerdown", ev => { ev.preventDefault(); answer(L, b); });
+    lp.appendChild(b);
+  });
+  const keys = $("ansMode").value === "keys";
+  kb.classList.toggle("hidden", !keys); lp.classList.toggle("hidden", keys);
+}
+function weightFor(i){
+  const s = nStats[KEYS[i].m]; if(!s || !s.n) return 2;
+  const err = 1 - s.c/s.n, avg = s.t/s.n;
+  return 1 + 4*err + Math.min(2, Math.max(0, (avg-1.5)));
+}
+function nextNote(){
+  const r = rangeIdx().filter(i => !cur || i !== cur.i || rangeIdx().length < 2);
+  const i = wpick(r.map(i => [i, weightFor(i)]));
+  cur = {i, t:performance.now()};
+  render($("noteStaff"), "X:1\nL:1/4\nK:C\n" + KEYS[i].abc + "4|]\n", 150);
+  $("noteFlash").textContent = "";
+  $("noteProg").textContent = `Note ${round.done+1} of ${round.total}`;
+  lock = false;
+}
+function answer(a, btn){
+  if(!round || !cur || lock) return;
+  const ok = typeof a === "number" ? a === cur.i : a === KEYS[cur.i].L;
+  const dt = (performance.now() - cur.t)/1000;
+  const m = KEYS[cur.i].m;
+  const s = nStats[m] || {n:0,c:0,t:0}; s.n++; s.t += Math.min(dt, 8); if(ok) s.c++; nStats[m] = s;
+  store.set("noteStats", nStats);
+  round.done++; if(ok) round.c++; round.times.push(dt);
+  if(!ok){ const key = KEYS[cur.i].L + (m<60?" (low)":m>=72?" (high)":""); round.miss[key] = (round.miss[key]||0)+1; }
+  if($("noteSound").checked) tone(m, ac().currentTime+.01, .5);
+  lock = true;
+  if(btn) btn.classList.add(ok ? "right" : "wrong");
+  let target = null;
+  if(!ok){
+    target = $("ansMode").value === "keys" ? $("kb").querySelector(`.w[data-i="${cur.i}"]`)
+      : Array.from($("letterPad").children).find(b => b.textContent === KEYS[cur.i].L);
+    if(target) target.classList.add("right");
+    $("noteFlash").innerHTML = `<span style="color:var(--bad)">It was ${KEYS[cur.i].L}${m===60?" (middle C)":""}</span>`;
+  } else $("noteFlash").innerHTML = `<span style="color:var(--good)">✓ ${dt.toFixed(1)} s</span>`;
+  setTimeout(() => {
+    if(btn) btn.classList.remove("right","wrong"); if(target) target.classList.remove("right");
+    if(round.done >= round.total) endRound(); else nextNote();
+  }, ok ? 380 : 1300);
+  drawChips();
+}
+function endRound(){
+  const t = round.times, avg = t.reduce((a,b)=>a+b,0)/t.length;
+  const misses = Object.keys(round.miss);
+  $("noteResult").classList.remove("hidden");
+  $("noteResult").innerHTML = `<b>Round done</b><div class="stat" style="margin-top:6px">
+    <div>Accuracy<br><b>${Math.round(100*round.c/round.total)}%</b></div>
+    <div>Avg time<br><b>${avg.toFixed(2)} s</b></div>
+    <div>Missed<br><b>${misses.length? misses.join(", ") : "none"}</b></div></div>
+    <p class="muted">${round.c/round.total>=.9 ? (avg<1.5 ? "Solid. Try the next level, or switch to Keys if you used letters." : "Accurate. Next goal: under 1.5 s per note.") : "Slow down and get each one right. Accuracy comes before speed."}</p>`;
+  $("noteProg").textContent = "Round finished. Press Start for another.";
+  $("noteStart").textContent = "Start"; round = null; cur = null;
+  render($("noteStaff"), "X:1\nL:1/4\nK:C\nx4|]\n", 150);
+}
+function drawChips(){
+  const el = $("noteChips"); el.innerHTML = "";
+  rangeIdx().forEach(i => {
+    const m = KEYS[i].m, s = nStats[m];
+    const name = KEYS[i].L + (m<60 ? " (low)" : m===60 ? " (mid)" : m===72 ? " (high)" : "");
+    const c = document.createElement("span"); c.className = "chip";
+    if(!s || !s.n){ c.textContent = name + " –"; }
+    else{
+      const p = s.c/s.n; c.textContent = `${name} ${Math.round(p*100)}% · ${(s.t/s.n).toFixed(1)}s`;
+      c.style.background = p>=.9 ? "rgba(47,125,79,.15)" : p>=.7 ? "rgba(194,138,18,.18)" : "rgba(192,57,43,.15)";
+    }
+    el.appendChild(c);
+  });
+}
+$("noteStart").addEventListener("click", () => {
+  ac(); round = {total:20, done:0, c:0, times:[], miss:{}}; $("noteResult").classList.add("hidden");
+  $("noteStart").textContent = "Restart"; buildKeyboard(); nextNote();
+});
+$("noteReset").addEventListener("click", () => { nStats = {}; store.set("noteStats", nStats); drawChips(); });
+["ansMode","keyLabels"].forEach(id => $(id).addEventListener("change", buildKeyboard));
+
+// ================= RHYTHM =================
+let rState = null, tapRun = null;
+function newRhythm(){
+  stopAll();
+  const time = $("rTime").value, len = TIME[time], nb = +$("rBars").value, vals = +$("rVals").value;
+  const bars = [];
+  for(let b=0; b<nb; b++){
+    const ev = genBar(len, vals, true);
+    if(b===0 && ev[0].rest) ev[0].rest = false; // start on a note
+    bars.push({events: ev.map(e => ({...e, k:10}))}); // B4 line
+  }
+  rState = {bars, time};
+  drawRhythm();
+  $("rResult").innerHTML = "";
+  setBeat("rBeats", -1, len/2);
+}
+function drawRhythm(){
+  if(!rState) return;
+  const abc = buildAbc(rState.bars, {time:rState.time, counts:$("rShow").checked, style:$("rStyle").value});
+  rState.els = render($("rStaff"), abc, 560);
+}
+$("rNew").addEventListener("click", newRhythm);
+["rTime","rVals","rBars"].forEach(id => $(id).addEventListener("change", newRhythm));
+["rShow","rStyle"].forEach(id => $(id).addEventListener("change", drawRhythm));
+$("rStop").addEventListener("click", () => { stopAll(); tapRun = null; });
+$("rListen").addEventListener("click", () => {
+  if(!rState) newRhythm(); drawRhythm();
+  schedule(rState.bars, rState.els, rState.time, +$("rTempo").value,
+    {beatId:"rBeats", metro:true, play:true, rhythmPitch:76, kind:"listen"});
+});
+$("rTap").addEventListener("click", () => {
+  if(!rState) newRhythm(); drawRhythm();
+  $("rResult").innerHTML = '<span class="muted">Count-in: one bar, then tap each note…</span>';
+  const sch = schedule(rState.bars, rState.els, rState.time, +$("rTempo").value,
+    {beatId:"rBeats", metro:$("rClick").checked, play:false, kind:"tap", done:scoreTaps});
+  tapRun = {sch, taps:[]};
+});
+function doTap(){
+  const pad = $("tapPad"); pad.classList.add("pulse"); setTimeout(()=>pad.classList.remove("pulse"), 90);
+  if(!ctx) ac();
+  if(tapRun && playing === "tap"){
+    const lat = (ctx.outputLatency || 0) + latency();
+    tapRun.taps.push(ctx.currentTime - lat);
+  } else {
+    tone(76, ac().currentTime+.005, .08, .15);
+  }
+}
+$("tapPad").addEventListener("pointerdown", e => { e.preventDefault(); doTap(); });
+document.addEventListener("keydown", e => {
+  if(e.code === "Space" && !$("tab-rhythm").classList.contains("hidden")){ e.preventDefault(); if(!e.repeat) doTap(); }
+});
+function scoreTaps(){
+  if(!tapRun) return;
+  const {sch, taps} = tapRun; tapRun = null;
+  const beat = sch.q*2, tol = Math.max(.09, .28*beat);
+  const used = new Set(); let perfect = 0, ok = 0, miss = 0; const errs = [];
+  sch.items.forEach(it => {
+    if(!it.el) return;
+    it.el.classList.remove("c-good","c-ok","c-bad");
+    if(it.ev.rest) return;
+    let bi = -1, bd = 1e9;
+    taps.forEach((t, i) => { if(used.has(i)) return; const d = Math.abs(t - it.t); if(d < bd){ bd = d; bi = i; } });
+    if(bi >= 0 && bd <= tol){
+      used.add(bi); const e = taps[bi] - it.t; errs.push(e);
+      if(Math.abs(e) <= tol*.5){ perfect++; it.el.classList.add("c-good"); } else { ok++; it.el.classList.add("c-ok"); }
+    } else { miss++; it.el.classList.add("c-bad"); }
+  });
+  const extra = taps.length - used.size, notes = perfect+ok+miss;
+  const score = Math.max(0, Math.round(100*(perfect + .6*ok - .5*extra)/notes));
+  const mean = errs.length ? errs.reduce((a,b)=>a+b,0)/errs.length*1000 : 0;
+  let tip = score >= 85 ? "Great. Try a faster tempo, or hide the counts." :
+    miss > 0 ? "Red notes were missed. Say the counts aloud and tap on every 'Ta' and 'ti'." :
+    "Close. Listen once, then tap again.";
+  if(Math.abs(mean) > 50 && errs.length >= 3) tip += ` You're consistently ${mean>0?"late":"early"} (~${Math.abs(Math.round(mean))} ms)` + (mean>0 ? ". If that's headphone lag, set latency compensation in Audio settings." : ". Wait for the beat.");
+  $("rResult").innerHTML = `<div class="stat"><div>Score<br><b>${score}%</b></div><div>On time<br><b>${perfect}</b></div>
+    <div>Slightly off<br><b>${ok}</b></div><div>Missed<br><b>${miss}</b></div><div>Extra taps<br><b>${extra}</b></div></div>
+    <p class="muted">${tip}<br>Green = on the beat · amber = a little early/late · red = missed.</p>`;
+}
+
+// ================= SIGHT =================
+let sState = null;
+function newSight(){
+  stopAll();
+  const level = +$("level").value, time = $("sTime").value, len = TIME[time];
+  const [lo, hi] = RANGE[level], nb = 4;
+  const bars = [];
+  for(let b=0; b<nb; b++){
+    const ev = b===nb-1 ? finalBar(len) : genBar(len, $("sQuav").checked ? 2 : 1, $("sRests").checked && b>0);
+    bars.push({events: ev});
+  }
+  // assign pitches
+  const notes = []; bars.forEach(b => b.events.forEach(e => { if(!e.rest) notes.push(e); }));
+  const C4 = 4, starts = [4,6,8].filter(i => i>=lo && i<=hi);
+  let p = rand(starts);
+  notes.forEach((e, i) => {
+    if(i === notes.length-1){ e.k = C4; return; }
+    if(i === notes.length-2){
+      const near = [3,5,6].filter(x => x>=lo && x<=hi);
+      e.k = near.reduce((a,x) => Math.abs(x-p) < Math.abs(a-p) ? x : a, near[0]); p = e.k; return;
+    }
+    if(i > 0){
+      const r = Math.random();
+      let step = r < .12 ? 0 : r < .68 ? 1 : r < .93 ? 2 : 3;
+      if(e.dur === 1 && step > 1) step = 1; // quavers move by step
+      let dir = Math.random() < .5 ? -1 : 1, n = p + dir*step;
+      if(n < lo || n > hi) n = p - dir*step;
+      if(n < lo || n > hi) n = p;
+      p = n;
+    }
+    e.k = p;
+  });
+  bars.forEach(b => b.events.forEach(e => { if(e.rest) e.k = 10; }));
+  bars.forEach((b, i) => b.chord = pickChord(b, level, i===nb-1, i===0));
+  sState = {bars, time};
+  drawSight();
+  setBeat("sBeats", -1, len/2);
+}
+function drawSight(){
+  if(!sState) return;
+  const abc = buildAbc(sState.bars, {time:sState.time, counts:$("sCounts").checked, style:"ta",
+    letters:$("sLetters").checked, chords:$("sChords").checked});
+  sState.els = render($("sStaff"), abc, 560);
+}
+$("sNew").addEventListener("click", newSight);
+["sTime","sQuav","sRests"].forEach(id => $(id).addEventListener("change", newSight));
+["sLetters","sCounts","sChords"].forEach(id => $(id).addEventListener("change", drawSight));
+$("sStop").addEventListener("click", stopAll);
+$("sGo").addEventListener("click", () => {
+  if(!sState) newSight(); drawSight();
+  $("sResult").innerHTML = midiOn ? '<p class="muted">Recording your playing…</p>' : "";
+  const sch = schedule(sState.bars, sState.els, sState.time, +$("sTempo").value,
+    {beatId:"sBeats", metro:true, play:false, playChords:$("sPlayChords").checked, kind:"go",
+     done:() => { if(sightRun) scoreSight(); }});
+  sState.els.forEach(el => el && el.classList.remove("c-good","c-ok","c-bad"));
+  sightRun = midiOn ? {sch, played:[]} : null;
+});
+let sightRun = null;
+function scoreSight(){
+  const {sch, played} = sightRun; sightRun = null;
+  const beat = sch.q*2, tol = Math.max(.12, .3*beat);
+  const used = new Set(); let good = 0, late = 0, wrong = 0, miss = 0, n = 0; const wrongNames = [];
+  sch.items.forEach(it => {
+    if(!it.el || it.ev.rest) return; n++;
+    const want = KEYS[it.ev.k].m;
+    let bi = -1, bd = 1e9, bp = -1, bpd = 1e9;
+    played.forEach((p, i) => { if(used.has(i)) return; const d = Math.abs(p.t - it.t);
+      if(d < bd){ bd = d; bi = i; } if(p.m === want && d < bpd){ bpd = d; bp = i; } });
+    if(bp >= 0 && bpd <= 2*tol){
+      used.add(bp);
+      if(bpd <= tol){ good++; it.el.classList.add("c-good"); } else { late++; it.el.classList.add("c-ok"); }
+    } else if(bi >= 0 && bd <= tol){
+      used.add(bi); wrong++; it.el.classList.add("c-bad"); wrongNames.push(KEYS[it.ev.k].L + "→" + midiName(played[bi].m));
+    } else { miss++; it.el.classList.add("c-bad"); }
+  });
+  const pct = n ? Math.round(100*(good + .5*late)/n) : 0;
+  $("sResult").innerHTML = `<div class="stat" style="margin-top:8px"><div>Score<br><b>${pct}%</b></div><div>Right &amp; on time<br><b>${good}</b></div>
+    <div>Right, off time<br><b>${late}</b></div><div>Wrong note<br><b>${wrong}</b></div><div>Missed<br><b>${miss}</b></div></div>
+    <p class="muted">${wrongNames.length ? "Wrong notes: " + wrongNames.join(", ") + ". " : ""}Green = right note, on time · amber = right note, early/late · red = wrong or missed.${pct>=85 ? " Great. Try a faster tempo or hide the letter names." : ""}</p>`;
+}
+$("sHear").addEventListener("click", () => {
+  if(!sState) newSight(); drawSight();
+  schedule(sState.bars, sState.els, sState.time, +$("sTempo").value,
+    {beatId:"sBeats", metro:true, play:true, playChords:$("sPlayChords").checked, kind:"hear"});
+});
+
+// ================= CARDS =================
+const POS = {
+  53:"3rd leger line below the staff", 55:"Space below the 2nd leger line", 57:"2nd leger line below the staff",
+  59:"Hangs just below middle C's leger line", 60:"Middle C · 1st leger line below the staff",
+  62:"Hangs just below the bottom line", 64:"1st (bottom) line", 65:"1st space", 67:"2nd line · where the G clef curls",
+  69:"2nd space", 71:"3rd (middle) line", 72:"3rd space · the C above middle C"
+};
+const R = s => "X:1\nL:1/8\nK:C\n" + s + "\n";
+const VALUES = [
+  {id:"v-sb", abc:R("B8|"),  a1:"Semibreve", a2:"Whole note · 4 counts", a3:"Say: Ta-2-3-4"},
+  {id:"v-dm", abc:R("B6|"),  a1:"Dotted minim", a2:"Dotted half note · 3 counts", a3:"Say: Ta-2-3. The dot adds half the value: 2 + 1"},
+  {id:"v-m",  abc:R("B4|"),  a1:"Minim", a2:"Half note · 2 counts", a3:"Say: Ta-2"},
+  {id:"v-dc", abc:R("B3B|"), a1:"Dotted crotchet + quaver", a2:"1½ counts + ½ count", a3:"Together they fill 2 beats"},
+  {id:"v-c",  abc:R("B2|"),  a1:"Crotchet", a2:"Quarter note · 1 count", a3:"Say: Ta"},
+  {id:"v-q",  abc:R("BB|"),  a1:"Two quavers", a2:"Eighth notes · ½ count each", a3:"Say: ti-ti. One beam joins them"},
+  {id:"v-q4", abc:R("BBBB|"),a1:"Four quavers", a2:"Eighth notes · 2 counts in total", a3:"Say: ti-ti ti-ti"},
+  {id:"v-sbr",abc:R("z8|"),  a1:"Semibreve rest", a2:"4 counts of silence (also used as a whole-bar rest)", a3:"Hangs below the 4th line · say: Ra-2-3-4"},
+  {id:"v-mr", abc:R("z4|"),  a1:"Minim rest", a2:"2 counts of silence", a3:"Sits on the 3rd line · say: Ra-2"},
+  {id:"v-cr", abc:R("z2|"),  a1:"Crotchet rest", a2:"1 count of silence", a3:"Say: Ra"},
+  {id:"v-qr", abc:R("z|"),   a1:"Quaver rest", a2:"½ count of silence", a3:""},
+  {id:"v-tie",abc:R("B4-B4|"), a1:"Tie", a2:"Play once and hold for both values: 2 + 2 = 4 counts", a3:"Curved line joining two notes of the same pitch"}
+];
+const SIGNS = [
+  {id:"s-44", abc:"X:1\nM:4/4\nL:1/4\nK:C\nx4|\n", a1:"4/4 time", a2:"4 crotchet beats per bar (quadruple)", a3:"Top number = beats per bar; bottom 4 = the beat is a crotchet"},
+  {id:"s-34", abc:"X:1\nM:3/4\nL:1/4\nK:C\nx3|\n", a1:"3/4 time", a2:"3 crotchet beats per bar (triple, waltz)", a3:"Count: 1 2 3 | 1 2 3"},
+  {id:"s-24", abc:"X:1\nM:2/4\nL:1/4\nK:C\nx2|\n", a1:"2/4 time", a2:"2 crotchet beats per bar (duple)", a3:"Count: 1 2 | 1 2"},
+  {id:"s-C",  abc:"X:1\nM:C\nL:1/4\nK:C\nx4|\n",   a1:"Common time", a2:"Same as 4/4", a3:""},
+  {id:"s-rep",abc:R("|:B2B2B4:|"), a1:"Repeat signs", a2:"Play the section between them twice", a3:""},
+  {id:"s-end",abc:R("B4B4|1B8:|2c8|]"), a1:"1st & 2nd endings", a2:"First time play ending 1, repeat, then skip to ending 2", a3:"Leave out the 1st ending on the repeat"},
+  {id:"s-stc",abc:R(".B2.B2.B2.B2|"), a1:"Staccato", a2:"Dot above or below the note: play it short and detached", a3:""},
+  {id:"s-dbl",abc:R("B8||B8|]"), a1:"Double bar line / final bar", a2:"Thin double bar = end of a section; thin + thick = end of the piece", a3:""},
+  {id:"s-ldg",abc:R("C4a4|"), a1:"Leger lines", a2:"Short extra lines for notes above or below the staff", a3:"Middle C sits on the 1st leger line below"},
+  {id:"s-dc", q:"D.C.", a1:"Da Capo", a2:"Go back to the beginning", a3:""},
+  {id:"s-dcf",q:"D.C. al Fine", a1:"Da Capo al Fine", a2:"Go back to the beginning and stop at Fine", a3:""},
+  {id:"s-dsf",q:"D.S. al Fine", a1:"Dal Segno al Fine", a2:"Go back to the sign 𝄋 and play until Fine", a3:""},
+  {id:"s-fin",q:"Fine", a1:"Fine (\"fee-nay\")", a2:"The end: stop here after a D.C. or D.S.", a3:""},
+  {id:"s-mf", q:"mf", a1:"Mezzo forte", a2:"Moderately loud", a3:""},
+  {id:"s-mp", q:"mp", a1:"Mezzo piano", a2:"Moderately soft", a3:""},
+  {id:"s-f",  q:"f",  a1:"Forte", a2:"Loud", a3:""},
+  {id:"s-p",  q:"p",  a1:"Piano", a2:"Soft", a3:""},
+  {id:"s-pk", abc:"X:1\nM:3/4\nL:1/4\nK:C\nG|c2c|\n", a1:"Pick-up note (anacrusis)", a2:"Note(s) before the first full bar", a3:"Count the missing beats silently, then play on the last beat"},
+  {id:"s-tmp",q:"Tempo  ♩ = 100", a1:"Tempo", a2:"Speed of the music: 100 crotchet beats per minute", a3:""},
+  {id:"s-oct",q:"Octave", a1:"8 notes apart", a2:"From one note to the next note with the same name, e.g. middle C → high C", a3:""},
+  {id:"s-sfc",q:"Single-finger chord", a1:"Left-hand auto chord", a2:"Major: 1 key · minor (m): add a black key to the left · 7th: add a white key to the left", a3:"Exact keys depend on your keyboard. Check its manual"}
+];
+function noteCards(){
+  return rangeIdx().map(i => ({id:"n-"+KEYS[i].m, abc:"X:1\nL:1/4\nK:C\n"+KEYS[i].abc+"4|]\n", midi:KEYS[i].m,
+    a1:KEYS[i].L + (KEYS[i].m===60 ? " · middle C" : KEYS[i].m<60 ? " (below middle C)" : KEYS[i].m===72 ? " (high C)" : ""),
+    a2:POS[KEYS[i].m], a3: KEYS[i].m===60 ? "White key just left of the two black keys in the middle" : ""}));
+}
+function deckCards(){
+  const d = $("deck").value;
+  if(d === "notes") return noteCards();
+  if(d === "values") return VALUES;
+  if(d === "signs") return SIGNS;
+  return noteCards().concat(VALUES, SIGNS);
+}
+let boxes = store.get("cardBoxes", {}); // id -> {b: box 0-4, seen: lastTurn}
+let turn = store.get("cardTurn", 0), card = null, flipped = false, lastId = null;
+const GAP = [1, 3, 7, 15, 30]; // cards to wait before showing again, per box
+function pickCard(){
+  const cards = deckCards();
+  const scored = cards.map(c => {
+    const s = boxes[c.id];
+    if(!s) return [c, 2.5];                  // new cards: fairly high priority
+    const due = turn - s.seen - GAP[s.b];
+    return [c, due >= 0 ? 3 + due*.3 + (4 - s.b) : .15/(s.b+1)];
+  }).filter(x => cards.length < 2 || x[0].id !== lastId);
+  return wpick(scored);
+}
+function showCard(){
+  card = pickCard(); lastId = card.id; flipped = false;
+  $("flip").classList.remove("flipped"); $("grade").classList.remove("show");
+  const front = $("cardFront"), q = $("cardFrontQ");
+  // wait for the flip-back animation before swapping the front content
+  setTimeout(() => {
+    front.innerHTML = ""; q.textContent = "";
+    if(card.abc) render(front, card.abc, card.id.startsWith("n-") ? 150 : 230); else q.textContent = card.q;
+    $("cardBack").innerHTML = `<div class="a1">${card.a1}</div><div class="a2">${card.a2||""}</div><div class="a3">${card.a3||""}</div>`;
+  }, flipped ? 0 : 200);
+  drawBoxes();
+}
+function drawBoxes(){
+  const cards = deckCards(), cnt = [0,0,0,0,0,0];
+  cards.forEach(c => { const s = boxes[c.id]; if(!s) cnt[0]++; else cnt[s.b+1]++; });
+  const names = ["New","Box 1","Box 2","Box 3","Box 4","Mastered"];
+  $("boxes").innerHTML = cnt.map((n,i) => `<div><b>${n}</b>${names[i]}</div>`).join("");
+  $("cardProg").textContent = `${cards.length} cards · ${cnt[5]} mastered`;
+}
+$("flip").addEventListener("click", () => {
+  if(!card) return;
+  flipped = !flipped; $("flip").classList.toggle("flipped", flipped);
+  if(flipped){ $("grade").classList.add("show"); if(card.midi && $("cardSound").checked) tone(card.midi, ac().currentTime+.01, .7); }
+});
+document.querySelectorAll("#grade button").forEach(b => b.addEventListener("click", () => {
+  if(!card || !flipped) return;
+  const g = +b.dataset.g, s = boxes[card.id] || {b:0, seen:0};
+  s.b = g === 0 ? 0 : g === 1 ? Math.max(0, s.b) : Math.min(4, s.b + (boxes[card.id] ? 1 : 1));
+  s.seen = turn; boxes[card.id] = s; turn++;
+  if(g === 0) s.seen = turn - GAP[0] + 2;  // bring it back within ~3 cards
+  store.set("cardBoxes", boxes); store.set("cardTurn", turn);
+  showCard();
+}));
+document.addEventListener("keydown", e => {
+  if($("tab-cards").classList.contains("hidden")) return;
+  if(e.code === "Space"){ e.preventDefault(); $("flip").click(); }
+  if(flipped && ["Digit1","Digit2","Digit3"].includes(e.code)) document.querySelectorAll("#grade button")[+e.code.slice(-1)-1].click();
+});
+$("deck").addEventListener("change", showCard);
+$("cardReset").addEventListener("click", () => { deckCards().forEach(c => delete boxes[c.id]); store.set("cardBoxes", boxes); showCard(); });
+
+// ---------- level change ----------
+$("level").addEventListener("change", () => {
+  buildKeyboard(); drawChips(); showCard();
+  if(sState) newSight();
+  if(round){ round = null; cur = null; $("noteStart").textContent = "Start"; $("noteProg").textContent = "Level changed. Press Start."; }
+});
+
+// ---------- voice ----------
+$("voice").addEventListener("change", () => loadVoice($("voice").value));
+$("voiceTry").addEventListener("click", () => {
+  stopAll();
+  loadVoice($("voice").value).then(() => {
+    const t = ac().currentTime + .05;
+    [60,64,67,72].forEach((m,i) => tone(m, t + i*.32, .3));
+    tone(60, t + 1.35, .9, .2); tone(64, t + 1.35, .9, .2); tone(67, t + 1.35, .9, .2);
+  });
+});
+loadVoice($("voice").value);
+
+// ================= MIDI =================
+let midiOn = false, midiAccess = null;
+const NAMES = ["C","C♯","D","E♭","E","F","F♯","G","A♭","A","B♭","B"];
+function midiName(m){ return NAMES[m%12] + (Math.floor(m/12)-1); }
+function midiStatus(){
+  const ins = midiAccess ? Array.from(midiAccess.inputs.values()).filter(i => i.state !== "disconnected") : [];
+  midiOn = ins.length > 0;
+  $("midiDot").classList.toggle("on", midiOn);
+  $("midiText").textContent = midiOn ? "🎹 " + ins.map(i => i.name).join(", ") : (midiAccess ? "No MIDI keyboard found. Plug it in." : "MIDI: not available in this browser (use MIDIWeb on iPad)");
+  $("midiBtn").classList.toggle("hidden", midiOn || !navigator.requestMIDIAccess);
+  ins.forEach(i => { i.onmidimessage = onMidi; });
+}
+function connectMidi(){
+  if(!navigator.requestMIDIAccess){ midiStatus(); return; }
+  navigator.requestMIDIAccess({sysex:false}).then(a => { midiAccess = a; a.onstatechange = midiStatus; midiStatus(); },
+    () => { $("midiText").textContent = "MIDI permission refused. Tap Connect keyboard."; });
+}
+function onMidi(e){
+  const d = e.data, cmd = d[0] & 0xf0;
+  if(!(cmd === 0x90 && d[2] > 0)) return;          // note-on only
+  const m = d[1];
+  const ago = Math.max(0, (performance.now() - (e.timeStamp || performance.now()))/1000);
+  $("midiDot").classList.add("hit"); setTimeout(() => $("midiDot").classList.remove("hit"), 120);
+  $("midiText").textContent = "🎹 " + midiName(m);
+  const tab = (document.querySelector(".tabs button.on")||{}).dataset;
+  const which = tab ? tab.tab : "cards";
+  if(which === "rhythm"){
+    if(tapRun && playing === "tap"){
+      const c = ac(); tapRun.taps.push(c.currentTime - ago - latency());
+      const pad = $("tapPad"); pad.classList.add("pulse"); setTimeout(()=>pad.classList.remove("pulse"), 90);
+    }
+    return;
+  }
+  if(which === "sight"){
+    if(sightRun && playing === "go"){ const c = ac(); sightRun.played.push({m, t:c.currentTime - ago - latency()}); }
+    return;
+  }
+  if(which === "notes"){
+    if(!round || !cur || lock) return;
+    const idx = KEYS.findIndex(k => k.m === m);
+    const keyEl = idx >= 0 ? $("kb").querySelector(`.w[data-i="${idx}"]`) : null;
+    if(keyEl){ keyEl.classList.add("midi"); setTimeout(() => keyEl.classList.remove("midi"), 300); }
+    if($("ansMode").value === "letters") answer(NAMES[m%12].length === 1 ? NAMES[m%12] : "#", null);
+    else answer(idx >= 0 ? idx : -1, keyEl);
+    if(idx < 0) $("noteFlash").innerHTML += ` <span class="muted">(you played ${midiName(m)})</span>`;
+    return;
+  }
+  if(which === "cards"){
+    if(!card || !card.midi || flipped) return;
+    const ok = m === card.midi;
+    $("flip").click();
+    const back = $("cardBack");
+    back.insertAdjacentHTML("afterbegin", `<div style="font-weight:700;color:${ok ? "var(--good)" : "var(--bad)"}">${ok ? "✓ You played it" : "✗ You played " + midiName(m)}</div>`);
+    if(ok) setTimeout(() => { if(flipped && card) document.querySelector("#grade .g-good").click(); }, 900);
+  }
+}
+$("midiBtn").addEventListener("click", connectMidi);
+connectMidi();
+
+// ---------- init ----------
+buildKeyboard(); drawChips();
+render($("noteStaff"), "X:1\nL:1/4\nK:C\nx4|]\n", 150);
+$("noteResult").classList.add("hidden");
+showCard();
+const t = store.get("tab", "cards");
+const tb = document.querySelector(`.tabs button[data-tab="${t}"]`); if(tb && t!=="cards") tb.click();
+})();
+</script>
+</body>
+</html>
