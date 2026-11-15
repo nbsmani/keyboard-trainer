@@ -198,7 +198,8 @@ main{max-width:760px;margin:0 auto;padding:14px 14px 40px}
 h1{font-size:19px;margin:4px 0 2px}
 .sub{color:var(--muted);font-size:13px;margin:0 0 12px}
 .tabs{display:flex;gap:6px;margin-bottom:12px;position:sticky;top:0;background:var(--bg);padding:6px 0;z-index:5}
-.tabs button{flex:1;padding:9px 4px;border:1px solid var(--line);background:var(--card);color:var(--ink);
+.tabs{flex-wrap:wrap}
+.tabs button{flex:1;min-width:110px;padding:9px 4px;border:1px solid var(--line);background:var(--card);color:var(--ink);
   border-radius:10px;font-weight:600;font-size:14px}
 .tabs button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:12px}
@@ -335,6 +336,7 @@ ol,ul{padding-left:20px;margin:6px 0}
     <button data-tab="notes">Notes</button>
     <button data-tab="rhythm">Rhythm</button>
     <button data-tab="sight">Sight-read</button>
+    <button data-tab="book">Pappa's Keyboard 1</button>
   </div>
 
   <!-- CARDS -->
@@ -464,6 +466,40 @@ ol,ul{padding-left:20px;margin:6px 0}
       </div>
       <div id="sResult"></div>
       <p class="muted"><b>Count me in</b> gives one bar of clicks, then the metronome keeps going and the cursor moves with the beat. Play along on your keyboard and don't stop. <b>Hear it</b> plays the correct version for checking.</p>
+    </div>
+  </section>
+
+  <!-- BOOK -->
+  <section id="tab-book" class="hidden">
+    <div class="card">
+      <div class="row">
+        <label>Song</label>
+        <select id="bSong" style="flex:1;min-width:200px"></select>
+        <button class="btn" id="bPrev" style="padding:6px 12px">◀</button>
+        <button class="btn" id="bNext" style="padding:6px 12px">▶</button>
+      </div>
+      <div class="muted" id="bInfo" style="margin:4px 0"></div>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="bLetters"> letter names</label>
+        <label class="chk"><input type="checkbox" id="bCounts"> counts</label>
+        <label class="chk"><input type="checkbox" id="bChords" checked> chord signs</label>
+        <label class="chk"><input type="checkbox" id="bPlayChords"> play chords</label>
+        <label class="chk"><input type="checkbox" id="bFollow" checked> follow</label>
+      </div>
+      <div class="row">
+        <label>Tempo <b id="bTempoV">100</b></label>
+        <input type="range" id="bTempo" min="40" max="140" value="100" style="flex:1">
+        <button class="btn" id="bBookTempo" style="padding:4px 10px;font-size:12px">Book tempo</button>
+      </div>
+      <div class="paper" id="bStaff"></div>
+      <div class="row" style="justify-content:center;margin-top:8px"><span id="bBeats"></span></div>
+      <div class="row">
+        <button class="btn primary" id="bGo">Count me in</button>
+        <button class="btn" id="bHear">Hear it</button>
+        <button class="btn" id="bStop">Stop</button>
+      </div>
+      <div id="bResult"></div>
+      <p class="muted">Songs from the book, grouped by time signature. Repeats with D.C., D.S. or 1st/2nd endings are written out in full. Start slower than the book tempo; with your keyboard connected, <b>Count me in</b> scores every note.</p>
     </div>
   </section>
 
@@ -734,23 +770,56 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     const n = e.dur / 2, s = Array.from({ length: n }, (_, i) => beat + i).join("-");
     return e.rest ? "(" + s + ")" : s;
   }
+  function evAbc(e) {
+    return e.abc != null ? e.abc : KEYS[e.k].abc;
+  }
+  function evMidi(e) {
+    return e.m != null ? e.m : KEYS[e.k].m;
+  }
+  function evLetter(e) {
+    return e.m != null ? "C D EF G A B"[e.m % 12] : KEYS[e.k].L;
+  }
+  function barChords(bar) {
+    return bar.chords || (bar.chord ? [{ pos: 0, name: bar.chord }] : []);
+  }
+  function barLen(bar) {
+    return bar.events.reduce((a, e) => a + e.dur, 0);
+  }
   function buildAbc(bars, opts) {
-    const len = TIME[opts.time];
-    let body = "";
+    const len = opts.meterLen || TIME[opts.time], per = opts.perLine || (bars.length === 4 ? 2 : 4);
+    let body = "", full = 0, held = 0;
     bars.forEach((bar, bi) => {
       let pos = 0, s = "";
-      if (opts.chords && bar.chord) s += '"' + bar.chord + '"';
+      const off = bar.pickup ? len - barLen(bar) : 0, chs = barChords(bar);
       bar.events.forEach((e, ei) => {
-        const joinPrev = e.dur === 1 && pos % 2 === 1 && ei > 0 && bar.events[ei - 1].dur === 1;
-        const joinPrev4 = e.dur === 1 && ei > 0 && bar.events[ei - 1].dur === 1 && e.group && e.group === bar.events[ei - 1].group;
-        if (!(joinPrev || joinPrev4) && ei > 0) s += " ";
-        if (opts.letters) s += '"_' + (e.rest ? " " : KEYS[e.k].L) + '"';
-        if (opts.counts) s += '"_' + syllable(e, pos, len, opts.style) + '"';
-        s += (e.rest ? "z" : KEYS[e.k].abc) + (e.dur === 1 ? "" : e.dur);
+        const ap = pos + off;
+        const joinPrev = e.dur === 1 && ap % 2 === 1 && ei > 0 && bar.events[ei - 1].dur === 1;
+        if (!joinPrev && ei > 0) s += " ";
+        if (opts.chords) {
+          const ch = chs.find((c) => c.pos === pos);
+          if (ch) s += '"' + ch.name + '"';
+        }
+        if (opts.letters) s += '"_' + (e.rest || e.cont ? " " : evLetter(e)) + '"';
+        if (opts.counts) {
+          let t2;
+          if (e.cont) {
+            const n = e.dur / 2;
+            t2 = Array.from({ length: n }, (_, i) => held + i + 1).join("-");
+            held += n;
+          } else {
+            t2 = syllable(e, ap, len, opts.style);
+            held = e.dur / 2;
+          }
+          s += '"_' + t2 + '"';
+        }
+        s += (e.rest ? "z" : evAbc(e)) + (e.dur === 1 ? "" : e.dur) + (e.tie ? "-" : "");
         pos += e.dur;
       });
       body += s + (bi === bars.length - 1 ? " |]" : " |");
-      if (bars.length === 4 && bi === 1) body += "\n";
+      if (!bar.pickup) {
+        full++;
+        if (full % per === 0 && bi < bars.length - 1) body += "\n";
+      }
     });
     return "X:1\nM:" + opts.time + "\nL:1/8\nK:C\n" + body + "\n";
   }
@@ -778,38 +847,51 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     const c = ac();
     stopAll();
     const len = TIME[time], beats = len / 2, q = 60 / tempo / 2;
+    const off = bars[0] && bars[0].pickup ? len - barLen(bars[0]) : 0;
     const t0 = c.currentTime + 0.25, start = t0 + beats * 2 * q;
     for (let b = 0; b < beats; b++) {
       const t2 = t0 + b * 2 * q;
       click(t2, b === 0);
       at(t2, () => setBeat(o.beatId, b, 0));
     }
-    const totalBeats = bars.length * beats;
-    if (o.metro) {
-      for (let b = 0; b < totalBeats; b++) {
-        const t2 = start + b * 2 * q;
-        click(t2, b % beats === 0);
-      }
-    }
+    let total = off;
+    bars.forEach((b) => total += barLen(b));
+    const totalBeats = Math.ceil(total / 2);
     for (let b = 0; b < totalBeats; b++) {
       const t2 = start + b * 2 * q;
+      if (o.metro || b * 2 < off) click(t2, b % beats === 0);
       at(t2, () => setBeat(o.beatId, b % beats, 0));
     }
+    const flat = [];
+    bars.forEach((bar) => bar.events.forEach((e) => flat.push(e)));
     const items = [];
-    let pos = 0, i = 0;
-    bars.forEach((bar, bi) => {
-      if (o.playChords && bar.chord) {
-        const ch = CHORDS[bar.chord];
-        ch.play.forEach((m) => tone(m, start + pos * q, len * q * 0.95, 0.09));
+    let pos = off, i = 0, lastChord = null;
+    bars.forEach((bar) => {
+      const bl = barLen(bar), chs = barChords(bar);
+      if (o.playChords) {
+        const list = chs.length ? chs : lastChord ? [{ pos: 0, name: lastChord }] : [];
+        list.forEach((ch, k) => {
+          const endPos = k + 1 < list.length ? list[k + 1].pos : bl, def = CHORDS[ch.name];
+          if (def) def.play.forEach((m) => tone(m, start + (pos + ch.pos) * q, (endPos - ch.pos) * q * 0.95, 0.09));
+        });
       }
+      if (chs.length) lastChord = chs[chs.length - 1].name;
       bar.events.forEach((e) => {
-        const t2 = start + pos * q, el = els[i];
+        const t2 = start + pos * q, el = els[i], idx = i;
         items.push({ t: t2, dur: e.dur * q, ev: e, el });
-        if (o.play && !e.rest) tone(o.rhythmPitch || KEYS[e.k].m, t2, e.dur * q * 0.92, o.rhythmPitch ? 0.22 : 0.28);
+        if (o.play && !e.rest && !e.cont) {
+          let d = e.dur;
+          for (let k = idx; flat[k] && flat[k].tie && flat[k + 1]; k++) d += flat[k + 1].dur;
+          tone(o.rhythmPitch || evMidi(e), t2, d * q * 0.92, o.rhythmPitch ? 0.22 : 0.28);
+        }
         if (el) {
           at(t2, () => {
             document.querySelectorAll(".hl").forEach((x) => x.classList.remove("hl"));
             el.classList.add("hl");
+            if (o.follow) {
+              const r = el.getBoundingClientRect(), z = parseFloat(document.body.style.zoom) || 1, top = r.top * (navigator.userAgent.indexOf("Chrome") >= 0 ? 1 : z);
+              if (top > window.innerHeight * 0.75 || top < 40) window.scrollBy({ top: top - window.innerHeight * 0.4, behavior: "smooth" });
+            }
           });
         }
         pos += e.dur;
@@ -831,7 +913,9 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     "F": { tones: ["F", "A", "C"], play: [53, 57, 60] },
     "G7": { tones: ["G", "B", "D", "F"], play: [43, 47, 50, 53] },
     "Dm": { tones: ["D", "F", "A"], play: [50, 53, 57] },
-    "Am": { tones: ["A", "C", "E"], play: [45, 48, 52] }
+    "Am": { tones: ["A", "C", "E"], play: [45, 48, 52] },
+    "G": { tones: ["G", "B", "D"], play: [43, 47, 50] },
+    "E": { tones: ["E", "G#", "B"], play: [40, 44, 47] }
   };
   function pickChord(bar, level, isLast, isFirst) {
     if (isLast) return "C";
@@ -854,12 +938,18 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
   document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => {
     stopAll();
     document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
-    ["cards", "notes", "rhythm", "sight"].forEach((t2) => $("tab-" + t2).classList.toggle("hidden", t2 !== b.dataset.tab));
+    ["cards", "notes", "rhythm", "sight", "book"].forEach((t2) => $("tab-" + t2).classList.toggle("hidden", t2 !== b.dataset.tab));
     if (b.dataset.tab === "rhythm" && !rState) newRhythm();
     if (b.dataset.tab === "sight" && !sState) newSight();
+    if (b.dataset.tab === "book" && !bState) loadSong(store.get("bSong", "mary"));
     store.set("tab", b.dataset.tab);
   }));
   const persist = [
+    "bLetters",
+    "bCounts",
+    "bChords",
+    "bPlayChords",
+    "bFollow",
     "awake",
     "level",
     "voice",
@@ -1255,16 +1345,16 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
   });
   let sightRun = null;
   function scoreSight() {
-    const { sch, played } = sightRun;
+    const { sch, played } = sightRun, res = sightRun.res || $("sResult");
     sightRun = null;
     const beat = sch.q * 2, tol = Math.max(0.12, 0.3 * beat);
     const used = /* @__PURE__ */ new Set();
     let good = 0, late = 0, wrong = 0, miss = 0, n = 0;
     const wrongNames = [];
     sch.items.forEach((it) => {
-      if (!it.el || it.ev.rest) return;
+      if (!it.el || it.ev.rest || it.ev.cont) return;
       n++;
-      const want = KEYS[it.ev.k].m;
+      const want = evMidi(it.ev);
       let bi = -1, bd = 1e9, bp = -1, bpd = 1e9;
       played.forEach((p, i) => {
         if (used.has(i)) return;
@@ -1291,14 +1381,14 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
         used.add(bi);
         wrong++;
         it.el.classList.add("c-bad");
-        wrongNames.push(KEYS[it.ev.k].L + "\u2192" + midiName(played[bi].m));
+        wrongNames.push(evLetter(it.ev) + "\u2192" + midiName(played[bi].m));
       } else {
         miss++;
         it.el.classList.add("c-bad");
       }
     });
     const pct = n ? Math.round(100 * (good + 0.5 * late) / n) : 0;
-    $("sResult").innerHTML = `<div class="stat" style="margin-top:8px"><div>Score<br><b>${pct}%</b></div><div>Right &amp; on time<br><b>${good}</b></div>
+    res.innerHTML = `<div class="stat" style="margin-top:8px"><div>Score<br><b>${pct}%</b></div><div>Right &amp; on time<br><b>${good}</b></div>
     <div>Right, off time<br><b>${late}</b></div><div>Wrong note<br><b>${wrong}</b></div><div>Missed<br><b>${miss}</b></div></div>
     <p class="muted">${wrongNames.length ? "Wrong notes: " + wrongNames.join(", ") + ". " : ""}Green = right note, on time \xB7 amber = right note, early/late \xB7 red = wrong or missed.${pct >= 85 ? " Great. Try a faster tempo or hide the letter names." : ""}</p>`;
   }
@@ -1481,6 +1571,277 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     });
   });
   loadVoice($("voice").value);
+  const SONGS = [
+    {
+      id: "mary",
+      title: "Mary Had a Little Lamb",
+      page: 17,
+      time: "4/4",
+      tempo: 100,
+      voice: "Flute",
+      sec: { A: '"C" E5 D5 C5 D5 | "C" E5 E5 E5/4 | "G" D5 D5 D5/4 | "C" E5 G5 G5/4 | "C" E5 D5 C5 D5 | "C" E5 E5 E5 E5 | "G" D5 D5 E5 D5 | "C" C5/8' }
+    },
+    {
+      id: "lightly",
+      title: "Lightly Row",
+      page: 18,
+      time: "4/4",
+      tempo: 100,
+      voice: "Strings",
+      sec: { A: '"C" G5 E5 E5/4 | "G7" F5 D5 D5/4 | "C" C5 D5 E5 F5 | "G" G5 G5 G5/4 | "C" G5 E5 E5/4 | "G7" F5 D5 D5/4 | "C" C5 E5 G5 G5 | "C" E5/6 z | "G" D5 D5 D5 D5 | "G7" D5 E5 F5/4 | "C" E5 E5 E5 E5 | "C" E5 F5 G5/4 | "C" G5 E5 E5/4 | "G7" F5 D5 D5/4 | "C" C5 E5 G5 E5 | "C" C5/6 z' }
+    },
+    {
+      id: "jingle",
+      title: "Jingle Bells",
+      page: 20,
+      time: "4/4",
+      tempo: 100,
+      voice: "Piano",
+      sec: { A: '"C" E5 E5 E5/4 | "C" E5 E5 E5/4 | "C" E5 G5 "G" C5 D5 | "C" E5/8 | "F" F5 F5 F5 F5 | "C" F5 E5 E5 E5 | "G" E5 D5 "C" D5 E5 | "G" D5/4 G5/4 | "C" E5 E5 E5/4 | "C" E5 E5 E5/4 | "C" E5 G5 "G" C5 D5 | "C" E5/8 | "F" F5 F5 F5 F5 | "C" F5 E5 E5 E5 | "G7" G5 G5 F5 D5 | "C" C5/8' }
+    },
+    {
+      id: "saints",
+      title: "When the Saints Go Marching",
+      page: 21,
+      time: "4/4",
+      tempo: 100,
+      voice: "Flute",
+      sec: { A: '"C" z C5 E5 F5 | "G" G5/8 | "C" z C5 E5 F5 | "G" G5/8 | "C" z C5 E5 F5 | "C" G5 E5/6 | "C" C5/4 E5/4 | "G" D5/8 | "G" z/4 E5 D5 | "C" C5/6 C5 | "C" E5/4 G5 G5 | "F" G5 F5/6 | "G" z/4 E5 F5 | "C" G5/4 E5/4 | "C" C5/4 "G" D5/4 | "C" C5/8' }
+    },
+    {
+      id: "longago",
+      title: "Long, Long Ago",
+      page: 26,
+      time: "C",
+      tempo: 120,
+      voice: "Strings + Piano",
+      sec: {
+        A: '"C" C5/4 C5 D5 | E5/4 E5 F5 | "G" G5/4 A5 G5 | "C" E5/8 | "G" G5/4 F5 E5 | D5/8 | "F" F5/4 "G" E5 D5 | "C" C5/8',
+        B: '"C" C5/4 C5 D5 | E5/4 E5 F5 | "G7" G5/4 A5 G5 | "C" E5/8 | "G7" G5/4 F5 E5 | D5/4 E5 D5 | "C" C5/4 "G" B4/4 | "C" C5/8',
+        C: '"G7" G5/4 F5 E5 | D5/4 G4 G4 | "F" F5/4 "G" E5 D5 | "C" C5/8 | "G7" G5/4 F5 E5 | D5/4 G4 G4 | "F" F5/4 "G" E5 D5 | "C" C5/8'
+      },
+      form: ["A", "B", "C", "B"],
+      note: "D.S. al Fine written out"
+    },
+    {
+      id: "shoofly",
+      title: "Shoo Fly, Don't Bother Me",
+      page: 27,
+      time: "4/4",
+      tempo: 100,
+      voice: "Flute + Piano",
+      sec: {
+        A: '"C" E5 C5/4 D5 | E5 F5 "G" D5/4 | D5 B4/4 C5 | "C" D5 E5 C5/4 | "C" E5 C5/4 D5 | "G7" E5 F5 D5/4 | G5 G5 G5 F5 | "C" E5 D5 C5 G4 | "C" E5 E5 E5 E5 | E5/6 C5 | E5 E5 E5 F5 | "G" D5/6 G4 | "G7" D5 D5 D5 D5 | D5/6 F5 | G5 F5 E5 D5',
+        E1: '"C" C5/6 G4',
+        E2: '"C" C5 z C5 z'
+      },
+      form: ["A", "E1", "A", "E2"],
+      note: "1st and 2nd endings written out"
+    },
+    {
+      id: "auralee",
+      title: "Aura Lee",
+      page: 28,
+      time: "4/4",
+      tempo: 100,
+      voice: "Flute + Violin",
+      sec: { A: '"C" G4 C5 B4 C5 | "Dm" D5 A4 D5/4 | "C" C5 B4 "G7" A4 B4 | "C" C5/8 | "C" G4 C5 B4 C5 | "Dm" D5 A4 D5 D5 | "C" C5 B4 "G7" A4 B4 | "C" C5/8 | "Am" E5 E5 E5/4 | "E" E5 E5 E5/4 | "Am" E5 D5 C5 D5 | "Am" E5/8 | "C" E5 E5 F5 E5 | "Dm" D5 A4 D5 D5 | "G7" C5 B4 E5 D5 | "C" C5/8' }
+    },
+    {
+      id: "blindmice",
+      title: "Three Blind Mice",
+      page: 15,
+      time: "3/4",
+      tempo: 100,
+      voice: "Violin / Flute",
+      sec: {
+        A: '"C" E5/6 | "G" D5/6 | "C" C5/6~ | "C" C5/6 | "C" E5/6 | "G" D5/4 D5 | "C" C5/6~ | "C" C5/6',
+        B: '"G" G5/6 | "F" F5/6 | "C" E5/6~ | "C" E5/6 | "G" G5/6 | "F" F5/4 F5 | "C" E5/6~ | "C" E5/6'
+      },
+      form: ["A", "B", "A"],
+      note: "D.C. al Fine written out"
+    },
+    {
+      id: "browneyes",
+      title: "Beautiful Brown Eyes",
+      page: 22,
+      time: "3/4",
+      tempo: 92,
+      voice: "Violin",
+      sec: { A: '"C" E5 E5 E5 | "C" C5 D5 E5 | "F" F5 F5/4~ | F5/6 | "C" E5 F5 G5 | "G" G5/4 E5 | "Dm" D5/6~ | "G7" D5/4 D5 | "C" E5 E5 E5 | "C" C5 D5 E5 | "F" F5 F5/4~ | F5/4 F5 | "G" G5 D5 E5 | "G7" F5 E5 D5 | "C" C5/6~ | C5/6' }
+    },
+    {
+      id: "birthday",
+      title: "Happy Birthday to You",
+      page: 30,
+      time: "3/4",
+      tempo: 80,
+      voice: "Piano + Strings",
+      pickup: true,
+      sec: { A: '"G" G4/1 G4/1 | "C" A4 G4 C5 | "G" B4/4 G4/1 G4/1 | "G" A4 G4 D5 | "C" C5/4 G4/1 G4/1 | "C" G5 E5 C5 | "F" B4 A4 F5/1 F5/1 | "G7" E5 C5 D5 | "C" C5/4' }
+    },
+    {
+      id: "twinkle",
+      title: "Twinkle Twinkle",
+      page: 25,
+      time: "2/4",
+      tempo: 100,
+      voice: "Oboe",
+      sec: {
+        A: '"C" C5 C5 | "G" G5 G5 | "F" A5 A5 | "G" G5/4 | "F" F5 F5 | "C" E5 E5 | "G" D5 D5 | "C" C5/4',
+        B: '"G" G5 G5 | "F" F5 F5 | "C" E5 E5 | "G" D5/4 | "F" F5 F5 | "C" E5 E5 | "G" D5 D5 | "C" C5/4'
+      },
+      form: ["A", "B", "A"]
+    }
+  ];
+  const GROUPS = [["4/4", (s) => s.time === "4/4" || s.time === "C"], ["3/4", (s) => s.time === "3/4"], ["2/4", (s) => s.time === "2/4"]];
+  const LETTER_PC = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  function nameToMidi(n) {
+    return (parseInt(n.slice(1), 10) + 1) * 12 + LETTER_PC[n[0]];
+  }
+  function midiAbc(m) {
+    const L = "C D EF G A B"[m % 12], o = Math.floor(m / 12) - 1;
+    return o <= 3 ? L + ",".repeat(4 - o) : o === 4 ? L : L.toLowerCase() + "'".repeat(o - 5);
+  }
+  function parseBars(str) {
+    return str.split("|").map((bs) => {
+      const bar = { events: [], chords: [] };
+      let pos = 0, m;
+      const re = /"([^"]+)"|(z|[A-G]\d)(?:\/(\d+))?(~?)/g;
+      while (m = re.exec(bs)) {
+        if (m[1]) {
+          bar.chords.push({ pos, name: m[1] });
+          continue;
+        }
+        const d = m[3] ? +m[3] : 2;
+        if (m[2] === "z") bar.events.push({ dur: d, rest: true });
+        else {
+          const mi = nameToMidi(m[2]);
+          bar.events.push({ dur: d, m: mi, abc: midiAbc(mi), tie: !!m[4] });
+        }
+        pos += d;
+      }
+      return bar;
+    }).filter((b) => b.events.length);
+  }
+  function songBars(s) {
+    const out = [];
+    (s.form || Object.keys(s.sec)).forEach((k) => parseBars(s.sec[k]).forEach((b) => out.push(b)));
+    if (s.pickup) out[0].pickup = true;
+    let prev = null;
+    out.forEach((b) => b.events.forEach((e) => {
+      if (prev && prev.tie && !e.rest) e.cont = true;
+      prev = e;
+    }));
+    return out;
+  }
+  const VOICE_MAP = { piano: "piano", flute: "flute", violin: "violin", strings: "violin", oboe: "clarinet", organ: "organ" };
+  let bState = null;
+  function fillSongs() {
+    const sel = $("bSong");
+    sel.innerHTML = "";
+    GROUPS.forEach(([label, test]) => {
+      const g = document.createElement("optgroup");
+      g.label = label + " time";
+      SONGS.filter(test).forEach((s) => {
+        const o = document.createElement("option");
+        o.value = s.id;
+        o.textContent = s.title + "  (p. " + s.page + ")";
+        g.appendChild(o);
+      });
+      if (g.children.length) sel.appendChild(g);
+    });
+  }
+  function orderedSongs() {
+    const r = [];
+    GROUPS.forEach(([l, t2]) => SONGS.filter(t2).forEach((s) => r.push(s)));
+    return r;
+  }
+  function loadSong(id, keepTempo) {
+    stopAll();
+    const s = SONGS.find((x) => x.id === id) || orderedSongs()[0];
+    $("bSong").value = s.id;
+    bState = { song: s, bars: songBars(s), time: s.time === "C" ? "4/4" : s.time };
+    if (!keepTempo) {
+      $("bTempo").value = s.tempo;
+      $("bTempoV").textContent = s.tempo;
+    }
+    const v = VOICE_MAP[(s.voice.split(/[ /+]/)[0] || "").toLowerCase()];
+    $("bInfo").innerHTML = `Book: p. ${s.page} \xB7 ${s.time === "C" ? "C (common time)" : s.time} \xB7 \u2669 = ${s.tempo} \xB7 voice: ${s.voice}` + (v ? ` <button class="btn" id="bVoice" style="padding:2px 8px;font-size:12px">use</button>` : "") + (s.note ? ` \xB7 <i>${s.note}</i>` : "");
+    if (v) $("bVoice").addEventListener("click", () => {
+      $("voice").value = v;
+      $("voice").dispatchEvent(new Event("change"));
+    });
+    $("bResult").innerHTML = "";
+    drawBook();
+    setBeat("bBeats", -1, TIME[bState.time] / 2);
+    store.set("bSong", s.id);
+  }
+  function drawBook() {
+    if (!bState) return;
+    const abc = buildAbc(bState.bars, {
+      time: bState.song.time === "C" ? "C" : bState.time,
+      meterLen: TIME[bState.time],
+      counts: $("bCounts").checked,
+      style: "ta",
+      letters: $("bLetters").checked,
+      chords: $("bChords").checked,
+      perLine: 4
+    });
+    bState.els = render($("bStaff"), abc, 720);
+  }
+  function stepSong(d) {
+    const list = orderedSongs(), i = list.findIndex((s) => s.id === bState.song.id);
+    loadSong(list[(i + d + list.length) % list.length].id);
+  }
+  fillSongs();
+  $("bSong").addEventListener("change", () => loadSong($("bSong").value));
+  $("bPrev").addEventListener("click", () => stepSong(-1));
+  $("bNext").addEventListener("click", () => stepSong(1));
+  ["bLetters", "bCounts", "bChords"].forEach((id) => $(id).addEventListener("change", drawBook));
+  $("bTempo").addEventListener("input", () => $("bTempoV").textContent = $("bTempo").value);
+  $("bBookTempo").addEventListener("click", () => {
+    if (bState) {
+      $("bTempo").value = bState.song.tempo;
+      $("bTempoV").textContent = bState.song.tempo;
+    }
+  });
+  $("bStop").addEventListener("click", stopAll);
+  $("bGo").addEventListener("click", () => {
+    if (!bState) loadSong(store.get("bSong", "mary"), true);
+    drawBook();
+    $("bResult").innerHTML = midiOn ? '<p class="muted">Recording your playing\u2026</p>' : "";
+    bState.els.forEach((el) => el && el.classList.remove("c-good", "c-ok", "c-bad"));
+    const sch = schedule(
+      bState.bars,
+      bState.els,
+      bState.time,
+      +$("bTempo").value,
+      {
+        beatId: "bBeats",
+        metro: true,
+        play: false,
+        playChords: $("bPlayChords").checked,
+        kind: "go",
+        follow: $("bFollow").checked,
+        done: () => {
+          if (sightRun) scoreSight();
+        }
+      }
+    );
+    sightRun = midiOn ? { sch, played: [], res: $("bResult") } : null;
+  });
+  $("bHear").addEventListener("click", () => {
+    if (!bState) loadSong(store.get("bSong", "mary"), true);
+    drawBook();
+    schedule(
+      bState.bars,
+      bState.els,
+      bState.time,
+      +$("bTempo").value,
+      { beatId: "bBeats", metro: true, play: true, playChords: $("bPlayChords").checked, kind: "hear", follow: $("bFollow").checked }
+    );
+  });
   let midiOn = false, midiAccess = null;
   const NAMES = ["C", "C\u266F", "D", "E\u266D", "E", "F", "F\u266F", "G", "A\u266D", "A", "B\u266D", "B"];
   function midiName(m) {
@@ -1538,7 +1899,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
       }
       return;
     }
-    if (which === "sight") {
+    if (which === "sight" || which === "book") {
       if (sightRun && playing === "go") {
         const c = ac();
         sightRun.played.push({ m, t: c.currentTime - ago - latency() });
