@@ -983,18 +983,31 @@ let midiOn = false, midiAccess = null;
 const NAMES = ["C","C♯","D","E♭","E","F","F♯","G","A♭","A","B♭","B"];
 function midiName(m){ return NAMES[m%12] + (Math.floor(m/12)-1); }
 function midiStatus(){
-  const ins = midiAccess ? Array.from(midiAccess.inputs.values()).filter(i => i.state !== "disconnected") : [];
+  const all = midiAccess ? Array.from(midiAccess.inputs.values()) : [];
+  const ins = all.filter(i => i.state !== "disconnected");
   midiOn = ins.length > 0;
   $("midiDot").classList.toggle("on", midiOn);
-  $("midiText").textContent = midiOn ? "🎹 " + ins.map(i => i.name).join(", ") : (midiAccess ? "No MIDI keyboard found. Plug it in." : "MIDI: not available in this browser (use MIDIWeb on iPad)");
-  $("midiBtn").classList.toggle("hidden", midiOn || !navigator.requestMIDIAccess);
+  $("midiText").textContent = midiOn ? "🎹 " + ins.map(i => i.name).join(", ")
+    : midiAccess ? "MIDI ready, but no keyboard found (inputs: " + all.length + "). Check the cable, then tap Connect."
+    : navigator.requestMIDIAccess ? "MIDI available. Tap Connect keyboard."
+    : "MIDI not available in this browser. On iPad, open this page in MIDIWeb Browser.";
+  $("midiBtn").classList.toggle("hidden", midiOn);
   ins.forEach(i => { i.onmidimessage = onMidi; });
 }
+let midiTries = 0;
 function connectMidi(){
-  if(!navigator.requestMIDIAccess){ midiStatus(); return; }
-  navigator.requestMIDIAccess({sysex:false}).then(a => { midiAccess = a; a.onstatechange = midiStatus; midiStatus(); },
-    () => { $("midiText").textContent = "MIDI permission refused. Tap Connect keyboard."; });
+  if(!navigator.requestMIDIAccess){
+    midiStatus();
+    if(midiTries++ < 10) setTimeout(connectMidi, 500);   // MIDI shim may be injected after load
+    return;
+  }
+  $("midiText").textContent = "Requesting MIDI access…";
+  navigator.requestMIDIAccess({sysex:false}).then(a => {
+    midiAccess = a; a.onstatechange = midiStatus; midiStatus();
+    if(!midiOn && midiTries++ < 10) setTimeout(midiStatus, 1000);
+  }, err => { $("midiText").textContent = "MIDI permission refused (" + ((err && err.name) || err) + "). Allow MIDI in MIDIWeb's settings, then tap Connect."; });
 }
+$("midiBtn").addEventListener("click", () => { midiTries = 0; connectMidi(); });
 function onMidi(e){
   const d = e.data, cmd = d[0] & 0xf0;
   if(!(cmd === 0x90 && d[2] > 0)) return;          // note-on only
@@ -1034,7 +1047,6 @@ function onMidi(e){
     if(ok) setTimeout(() => { if(flipped && card) document.querySelector("#grade .g-good").click(); }, 900);
   }
 }
-$("midiBtn").addEventListener("click", connectMidi);
 connectMidi();
 
 // ---------- init ----------
