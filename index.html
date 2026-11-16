@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes">
 <title>Keyboard Sight-Reading Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
 <script>(function() {
   function bar(msg) {
     var b = document.getElementById("diag");
@@ -184,16 +186,29 @@ X:`),e=1;e<t.length;e++)t[e]="X:"+t[e];var c=s?s[0].length:0,a=[];t.forEach((fun
 
 <style>
 :root{
-  --bg:#f6f4ef; --card:#ffffff; --ink:#1d1d1f; --muted:#6b6b70; --line:#e3dfd6;
-  --accent:#b4441f; --accent-soft:#f5e4dc; --good:#2f7d4f; --ok:#c28a12; --bad:#c0392b;
+  /* Design system tokens (pdf-design-system v1.0.0) */
+  --royal:#4361EE;      /* section headers, table headers, underlines, key numbers, primary actions */
+  --royal-text:#4361EE; /* royal blue used as text colour */
+  --near-black:#1a1a1a; /* titles, labels */
+  --teal:#2196A4;       /* subtitles, subsections */
+  --body:#333333;       /* body text */
+  --gray:#666666;       /* secondary text */
+  --tint:#f8f9ff; --tint2:#f0f4ff; --rule:#d6dcf5;
+  /* app variables mapped onto the tokens */
+  --bg:#ffffff; --card:#ffffff; --ink:var(--body); --muted:var(--gray); --line:#e3e7f6;
+  --accent:var(--royal); --accent-soft:var(--tint2);
+  /* scoring colours (kept: right / early-late / wrong) */
+  --good:#2f7d4f; --ok:#c28a12; --bad:#c0392b;
 }
 @media (prefers-color-scheme: dark){
-  :root{ --bg:#161616; --card:#222; --ink:#eee; --muted:#a3a3a8; --line:#353535;
-         --accent:#e07a50; --accent-soft:#3a2a22; }
+  /* Dark variant built from the same palette */
+  :root{ --royal-text:#7d93f5; --near-black:#f2f4fb; --teal:#4cc0cd; --body:#d9dcea; --gray:#9aa1bb;
+         --tint:#1b2033; --tint2:#1e2540; --rule:#323a5c;
+         --bg:#11131c; --card:#181b28; --line:#2a2f45; color-scheme:dark; }
 }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);
-  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  font:15px/1.5 'Inter',Helvetica,Arial,sans-serif}
 main{max-width:760px;margin:0 auto;padding:14px 14px 40px}
 h1{font-size:19px;margin:4px 0 2px}
 .sub{color:var(--muted);font-size:13px;margin:0 0 12px}
@@ -281,6 +296,53 @@ ol,ul{padding-left:20px;margin:6px 0}
 .boxes{display:flex;gap:6px;margin-top:10px}
 .boxes div{flex:1;text-align:center;font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:4px 0}
 .boxes b{display:block;font-size:16px;color:var(--ink)}
+
+/* ======================= DESIGN SYSTEM (screen adaptation) =======================
+   Music notation (abcjs) keeps its own fonts. Scoring keeps green / amber / red. */
+h1{color:var(--near-black);font-weight:700;letter-spacing:.02em}
+.sub{color:var(--teal)}
+label{color:var(--gray)}
+.chk{color:var(--body)}
+.card{border-radius:4px;box-shadow:none}
+/* section headers: ALL CAPS, royal blue, thin underline */
+.card > summary, .card > b:first-child, .card > .row > b:first-child{
+  color:var(--royal-text);font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:13px}
+.card > b:first-child{display:block;border-bottom:1px solid var(--royal);padding-bottom:3px;margin-bottom:6px}
+details.card[open] > summary{border-bottom:1px solid var(--royal);padding-bottom:3px;margin-bottom:6px}
+/* help / tip paragraphs: formula box */
+.card > p.muted{background:var(--tint);border-left:3px solid var(--royal);padding:8px 10px;color:var(--body);border-radius:0 3px 3px 0}
+/* tabs, buttons, inputs */
+.tabs button{border-radius:4px;border-color:var(--rule);color:var(--near-black);font-weight:600}
+.tabs button.on{background:var(--royal);border-color:var(--royal);color:#fff}
+.btn{border-radius:4px;border-color:var(--rule);color:var(--near-black);font-weight:600}
+.btn.primary{background:var(--royal);border-color:var(--royal);color:#fff}
+select{border-radius:4px;border-color:var(--rule);color:var(--near-black)}
+input[type=range], input[type=checkbox]{accent-color:var(--royal)}
+/* key numbers */
+.stat > div{color:var(--gray);font-size:13px}
+.stat b, .boxes b, .big{color:var(--royal-text)}
+.boxes div{border-color:var(--rule);border-radius:4px}
+/* tables */
+table{font-family:'Inter',Helvetica,sans-serif;border-collapse:collapse}
+table th{background:var(--royal);color:#fff !important;font-weight:600;padding:6px 8px;text-align:left}
+table td{padding:5px 8px;border-bottom:.5px solid var(--rule);color:var(--body)}
+table tr:nth-child(even) td{background:var(--tint)}
+/* flashcards: highlight box */
+.face{border-radius:4px;border-color:var(--rule);box-shadow:none}
+.face.back{background:var(--tint2);border:1px solid var(--royal)}
+.ans .a1{color:var(--near-black)}
+.ans .a2{color:var(--teal)}
+.ans .a3{color:var(--gray);font-style:italic}
+/* accents */
+.hl{color:var(--royal) !important;fill:var(--royal) !important}
+.beat.on{background:var(--royal)}
+#tapPad{border-color:var(--royal);background:var(--tint2);color:var(--near-black)}
+#tapPad.pulse{background:var(--royal);color:#fff}
+.kb .mc{background:var(--royal)}
+.chip{border-color:var(--rule)}
+.paper{border-color:var(--rule);border-radius:4px}
+.midibar, .toolbar{color:var(--gray)}
+/* ===================== END DESIGN SYSTEM ===================== */
 </style>
 </head>
 <body>
@@ -300,19 +362,19 @@ ol,ul{padding-left:20px;margin:6px 0}
     <ol>
       <li><b>Notes (3 min):</b> one 20-note round on <i>Keys</i>. Aim for &gt;90% accuracy, then work on speed.</li>
       <li><b>Rhythm (3 min):</b> say the counts aloud (Ta, Ta-2, ti-ti, Ra) while tapping. Move on when you score above 85% twice in a row.</li>
-      <li><b>Sight-read (5 min):</b> 3–4 new melodies. Before playing, check the time signature, the rhythms and the highest and lowest notes. Then <i>Count me in</i> and <b>don't stop</b> for mistakes. Use <i>Hear it</i> afterwards to check.</li>
+      <li><b>Sight-read (5 min):</b> 3-4 new melodies. Before playing, check the time signature, the rhythms and the highest and lowest notes. Then <i>Count me in</i> and <b>don't stop</b> for mistakes. Use <i>Hear it</i> afterwards to check.</li>
       <li><b>Book (1 min):</b> read the counts of the next song in the book before you play it.</li>
     </ol>
-    <p class="muted">Level guide: Level 1 = pp. 13–25 (C to G, five-finger C position) · Level 2 = pp. 26–27 (up to high C) · Level 3 = pp. 28–31 (down to F below middle C).</p>
+    <p class="muted">Level guide: Level 1 = pp. 13-25 (C to G, five-finger C position) · Level 2 = pp. 26-27 (up to high C) · Level 3 = pp. 28-31 (down to F below middle C).</p>
   </details>
 
   <div class="card">
     <div class="row">
       <label>Book level</label>
       <select id="level">
-        <option value="1">Level 1 · C–G (pp. 13–25)</option>
-        <option value="2">Level 2 · middle C–high C (pp. 26–27)</option>
-        <option value="3">Level 3 · F below–high C (pp. 28–31)</option>
+        <option value="1">Level 1 · C-G (pp. 13-25)</option>
+        <option value="2">Level 2 · middle C-high C (pp. 26-27)</option>
+        <option value="3">Level 3 · F below-high C (pp. 28-31)</option>
       </select>
     </div>
     <div class="row">
@@ -408,7 +470,7 @@ ol,ul{padding-left:20px;margin:6px 0}
         <label>Time</label>
         <select id="rTime"><option>4/4</option><option>3/4</option><option>2/4</option></select>
         <label>Values</label>
-        <select id="rVals"><option value="1">Semibreve–crotchet + rests</option><option value="2">+ quavers (p. 30)</option></select>
+        <select id="rVals"><option value="1">Semibreve-crotchet + rests</option><option value="2">+ quavers (p. 30)</option></select>
         <label>Bars</label>
         <select id="rBars"><option>2</option><option selected>4</option></select>
       </div>
@@ -1161,7 +1223,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
       const c = document.createElement("span");
       c.className = "chip";
       if (!s || !s.n) {
-        c.textContent = name + " \u2013";
+        c.textContent = name + " -";
       } else {
         const p = s.c / s.n;
         c.textContent = `${name} ${Math.round(p * 100)}% \xB7 ${(s.t / s.n).toFixed(1)}s`;
@@ -1926,8 +1988,8 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     const weak = Object.keys(st.bars).map((k) => ({ i: +k, err: st.bars[k][0], n: st.bars[k][1] })).filter((x) => x.n >= 2 && x.err / x.n >= 0.2 && x.i < bState.bars.length).sort((a, b) => b.err / b.n - a.err / a.n).slice(0, 4);
     el.innerHTML = `<b>Your progress: ${bState.song.title}</b>
     <div class="stat" style="margin-top:6px">
-      <div>Best (whole song)<br><b>${best == null ? "\u2013" : best + "%"}</b></div>
-      <div>Last<br><b>${last.pct}%</b> <span class="muted">${last.mode === "learn" ? "learn" : "\u2669=" + last.tempo}${last.range ? " \xB7 bars " + barLabel(last.range[0]) + "\u2013" + barLabel(last.range[1]) : ""}</span></div>
+      <div>Best (whole song)<br><b>${best == null ? "-" : best + "%"}</b></div>
+      <div>Last<br><b>${last.pct}%</b> <span class="muted">${last.mode === "learn" ? "learn" : "\u2669=" + last.tempo}${last.range ? " \xB7 bars " + barLabel(last.range[0]) + "-" + barLabel(last.range[1]) : ""}</span></div>
       <div>Play-alongs<br><b>${play.length}</b></div><div>Learn runs<br><b>${learn.length}</b></div>
       <div>Last practised<br><b>${fmtDate(last.d)}</b></div>
     </div>
@@ -1937,7 +1999,7 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
     el.querySelectorAll(".weak").forEach((b) => b.addEventListener("click", () => {
       const i = +b.dataset.i, a = Math.max(0, i - 1), z = Math.min(bState.bars.length - 1, i + 1);
       setLoop(a, z);
-      $("bResult").innerHTML = `<p class="muted">Looping bars ${barLabel(a)}\u2013${barLabel(z)}. Try <b>Learn</b> first, then <b>Play along</b>.</p>`;
+      $("bResult").innerHTML = `<p class="muted">Looping bars ${barLabel(a)}-${barLabel(z)}. Try <b>Learn</b> first, then <b>Play along</b>.</p>`;
       const off = elsOffset(a);
       scrollToEl(bState.els[off]);
     }));
@@ -1951,8 +2013,8 @@ var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
   function renderOverview() {
     const rows = orderedSongs().map((s) => {
       const st = bookStats[s.id];
-      if (!st || !st.plays.length) return `<tr><td>${s.title}</td><td>\u2013</td><td>\u2013</td><td>\u2013</td></tr>`;
-      const full = st.plays.filter((p) => p.mode === "play" && !p.range), best = full.length ? Math.max(...full.map((p) => p.pct)) + "%" : "\u2013";
+      if (!st || !st.plays.length) return `<tr><td>${s.title}</td><td>-</td><td>-</td><td>-</td></tr>`;
+      const full = st.plays.filter((p) => p.mode === "play" && !p.range), best = full.length ? Math.max(...full.map((p) => p.pct)) + "%" : "-";
       return `<tr><td>${s.title}</td><td>${st.plays.length}</td><td>${best}</td><td>${fmtDate(st.plays[st.plays.length - 1].d)}</td></tr>`;
     }).join("");
     $("bAll").innerHTML = `<table style="width:100%;font-size:13px;border-collapse:collapse;margin-top:6px"><tr style="text-align:left;color:var(--muted)"><th>Song</th><th>Plays</th><th>Best</th><th>Last</th></tr>${rows}</table>`;
