@@ -21,3 +21,5 @@ Without MIDI everything works by touch.
 - `src/build.py`: rebuilds `index.html` (`cd src && npm i abcjs@6.7.2 esbuild && python3 build.py`)
 
 Notation rendering: [abcjs](https://github.com/paulrosen/abcjs) (MIT).
+
+This repo is vibe-coded with claude.
