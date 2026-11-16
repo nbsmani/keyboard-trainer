@@ -142,6 +142,12 @@ ol,ul{padding-left:20px;margin:6px 0}
 .boxes div{flex:1;text-align:center;font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:8px;padding:4px 0}
 .boxes b{display:block;font-size:16px;color:var(--ink)}
 
+/* Music + side column (Sight-read, Pappa's Keyboard 1): side by side on wide screens, stacked below otherwise */
+.split-side > .card:first-child{margin-top:0}
+@media (min-width: 1100px){
+  main.wide{max-width:1240px}
+  main.wide .split{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;align-items:start}
+}
 /* ======================= DESIGN SYSTEM (screen adaptation) =======================
    Music notation (abcjs) keeps its own fonts. Scoring keeps green / amber / red. */
 h1{color:var(--near-black);font-weight:700;letter-spacing:.02em}
@@ -346,6 +352,8 @@ table tr:nth-child(even) td{background:var(--tint)}
 
   <!-- SIGHT -->
   <section id="tab-sight" class="hidden">
+    <div class="split">
+    <div class="split-main">
     <div class="card">
       <div class="row">
         <label>Time</label>
@@ -374,10 +382,17 @@ table tr:nth-child(even) td{background:var(--tint)}
       <div id="sResult"></div>
       <p class="muted"><b>Count me in</b> gives one bar of clicks, then the metronome keeps going and the cursor moves with the beat. Play along on your keyboard and don't stop. <b>Hear it</b> plays the correct version for checking.</p>
     </div>
+    </div>
+    <aside class="split-side">
+      <div class="settings-slot"></div>
+    </aside>
+    </div>
   </section>
 
   <!-- BOOK -->
   <section id="tab-book" class="hidden">
+    <div class="split">
+    <div class="split-main">
     <div class="card">
       <div class="row">
         <label>Song</label>
@@ -398,8 +413,6 @@ table tr:nth-child(even) td{background:var(--tint)}
         <input type="range" id="bTempo" min="40" max="160" value="100" style="flex:1">
         <button class="btn" id="bBookTempo" style="padding:4px 10px;font-size:12px">Book tempo</button>
       </div>
-      <div class="paper" id="bStaff"></div>
-      <div class="row" style="justify-content:center;margin-top:8px"><span id="bBeats"></span></div>
       <div class="row">
         <label>Bars</label>
         <select id="bFrom"></select><span>to</span><select id="bTo"></select>
@@ -412,14 +425,21 @@ table tr:nth-child(even) td{background:var(--tint)}
         <button class="btn" id="bHear">Hear it</button>
         <button class="btn" id="bStop">Stop</button>
       </div>
+      <div class="paper" id="bStaff"></div>
+      <div class="row" style="justify-content:center;margin-top:8px"><span id="bBeats"></span></div>
       <div id="bResult"></div>
-      <p class="muted"><b>Learn</b>: the highlighted note waits until you play it on your keyboard, with no tempo. <b>Play along</b>: one bar of count-in, then play in time and get a score. A good routine: Learn → loop your weak bars → Play along slowly → let auto-tempo raise the speed (+4 after ≥90%, −4 below 60%).</p>
     </div>
-    <div class="card" id="bStats"></div>
-    <details class="card" id="bOverview"><summary>Progress: all songs</summary><div id="bAll"></div></details>
+    </div>
+    <aside class="split-side">
+      <div class="card" id="bStats"></div>
+      <details class="card" id="bOverview"><summary>Progress: all songs</summary><div id="bAll"></div></details>
+      <div class="settings-slot"></div>
+    </aside>
+    </div>
   </section>
 
-  <details class="card">
+  <div id="settingsHome"></div>
+  <details class="card" id="settingsBox">
     <summary>Audio settings</summary>
     <div class="row">
       <label>Latency compensation <b id="latV">0</b> ms</label>
@@ -725,6 +745,7 @@ document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click
   if(b.dataset.tab === "rhythm" && !rState) newRhythm();
   if(b.dataset.tab === "sight" && !sState) newSight();
   if(b.dataset.tab === "book" && !bState) loadSong(store.get("bSong", "mary"));
+  placeSettings(b.dataset.tab);
   store.set("tab", b.dataset.tab);
 }));
 
@@ -1539,6 +1560,14 @@ document.addEventListener("visibilitychange", () => {
   if(document.visibilityState === "visible" && $("awake").checked && awakeOn) startAwake();
 });
 setAwake($("awake").checked ? "tap anywhere to activate" : "");
+
+// ---------- layout: side column ----------
+function placeSettings(tab){
+  const box = $("settingsBox"), side = tab === "book" || tab === "sight";
+  document.querySelector("main").classList.toggle("wide", side);
+  if(side) $("tab-" + tab).querySelector(".settings-slot").appendChild(box);
+  else $("settingsHome").after(box);
+}
 
 // ---------- init ----------
 buildKeyboard(); drawChips();
